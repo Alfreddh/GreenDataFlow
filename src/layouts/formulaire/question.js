@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import PropTypes from "prop-types";
 import {
   Box,
@@ -12,6 +12,7 @@ import {
   Grid,
   Paper,
   Button,
+  FormControl,
 } from "@mui/material";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -47,11 +48,23 @@ import LinearScaleIcon from "@mui/icons-material/LinearScale";
 import CodeIcon from "@mui/icons-material/Code";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import DescriptionIcon from "@mui/icons-material/Description";
+import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
+import * as XLSX from "xlsx";
 
 const questionTypes = [
   { value: "texte", label: "Texte", icon: <TextFieldsIcon /> },
-  { value: "nombre_entier", label: "Nombre entier", icon: <NumbersIcon /> },
-  { value: "nombre_decimal", label: "Nombre décimal", icon: <NumbersIcon /> },
+  {
+    value: "nombre_entier",
+    label: "Nombre entier",
+    icon: <span style={{ fontSize: "1.5rem", fontWeight: "bold" }}>123</span>,
+  },
+  {
+    value: "nombre_decimal",
+    label: "Nombre décimal",
+    icon: <span style={{ fontSize: "1.5rem", fontWeight: "bold" }}>1.0</span>,
+  },
   { value: "binaire", label: "Binaire", icon: <ToggleOnIcon /> },
   { value: "media", label: "Media", icon: <PermMediaIcon /> },
   { value: "datetime", label: "Date et heure", icon: <AccessTimeIcon /> },
@@ -63,19 +76,22 @@ const questionTypes = [
   { value: "ligne", label: "Ligne", icon: <TimelineIcon /> },
   { value: "note", label: "Note", icon: <NoteIcon /> },
   { value: "qrcode", label: "Code barre/QR", icon: <QrCodeIcon /> },
-  { value: "zone", label: "Zone", icon: <GridOnIcon /> },
-  { value: "tableau", label: "Tableau de questions", icon: <ViewListIcon /> },
+  { value: "zone", label: "Zone", icon: <ViewListIcon /> },
+  { value: "tableau", label: "Tableau de questions", icon: <GridOnIcon /> },
   { value: "classement", label: "Classement", icon: <SortIcon /> },
   { value: "fichier", label: "Fichier", icon: <AttachFileIcon /> },
   { value: "choix_unique", label: "Choix unique", icon: <RadioButtonCheckedIcon /> },
   { value: "choix_multiple", label: "Choix Multiple", icon: <CheckBoxIcon /> },
-  { value: "section", label: "Section", icon: <ViewListIcon /> },
 ];
 
 const typeIcons = {
   texte: <TextFieldsIcon fontSize="small" sx={{ mr: 1 }} />,
-  nombre_entier: <NumbersIcon fontSize="small" sx={{ mr: 1 }} />,
-  nombre_decimal: <NumbersIcon fontSize="small" sx={{ mr: 1 }} />,
+  nombre_entier: (
+    <span style={{ fontSize: "1rem", fontWeight: "bold", marginRight: "8px" }}>123</span>
+  ),
+  nombre_decimal: (
+    <span style={{ fontSize: "1rem", fontWeight: "bold", marginRight: "8px" }}>1.0</span>
+  ),
   binaire: <ToggleOnIcon fontSize="small" sx={{ mr: 1 }} />,
   media: <PermMediaIcon fontSize="small" sx={{ mr: 1 }} />,
   datetime: <AccessTimeIcon fontSize="small" sx={{ mr: 1 }} />,
@@ -87,13 +103,12 @@ const typeIcons = {
   ligne: <TimelineIcon fontSize="small" sx={{ mr: 1 }} />,
   note: <NoteIcon fontSize="small" sx={{ mr: 1 }} />,
   qrcode: <QrCodeIcon fontSize="small" sx={{ mr: 1 }} />,
-  zone: <GridOnIcon fontSize="small" sx={{ mr: 1 }} />,
-  tableau: <ViewListIcon fontSize="small" sx={{ mr: 1 }} />,
+  zone: <ViewListIcon fontSize="small" sx={{ mr: 1 }} />,
+  tableau: <GridOnIcon fontSize="small" sx={{ mr: 1 }} />,
   classement: <SortIcon fontSize="small" sx={{ mr: 1 }} />,
   fichier: <AttachFileIcon fontSize="small" sx={{ mr: 1 }} />,
   choix_unique: <RadioButtonCheckedIcon fontSize="small" sx={{ mr: 1 }} />,
   choix_multiple: <CheckBoxIcon fontSize="small" sx={{ mr: 1 }} />,
-  section: <ViewListIcon fontSize="small" sx={{ mr: 1 }} />,
 };
 
 const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
@@ -119,6 +134,9 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
   const [cascadeModalOpen, setCascadeModalOpen] = useState(false);
   const [cascadeTargetQuestionId, setCascadeTargetQuestionId] = useState(null);
   const [cascadeText, setCascadeText] = useState("");
+  const [cascadeFile, setCascadeFile] = useState(null);
+  const [cascadeFileName, setCascadeFileName] = useState("");
+  const [cascadeInputMode, setCascadeInputMode] = useState("text"); // "text" ou "file"
 
   // Écouter les changements du localStorage pour synchroniser les données
   useEffect(() => {
@@ -578,6 +596,68 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
     });
   };
 
+  // Fonction pour lire et parser un fichier Excel
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Vérifier que c'est un fichier Excel
+    const validTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+      "application/vnd.ms-excel", // .xls
+      "application/vnd.ms-excel.sheet.macroEnabled.12", // .xlsm
+    ];
+
+    if (!validTypes.includes(file.type)) {
+      alert("Veuillez sélectionner un fichier Excel (.xlsx, .xls, .xlsm)");
+      return;
+    }
+
+    setCascadeFileName(file.name);
+    setCascadeFile(file);
+
+    // Lire le fichier Excel
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        // Prendre la première feuille
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+
+        // Convertir en JSON
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        // Convertir les données Excel en format texte pour la cascade
+        if (jsonData.length > 0) {
+          const headers = jsonData[0];
+          const rows = jsonData.slice(1);
+
+          // Créer le texte de cascade à partir des données Excel
+          let cascadeTextFromExcel = headers.join("\t") + "\n";
+          rows.forEach((row) => {
+            cascadeTextFromExcel += row.join("\t") + "\n";
+          });
+
+          setCascadeText(cascadeTextFromExcel.trim());
+        }
+      } catch (error) {
+        console.error("Erreur lors de la lecture du fichier Excel:", error);
+        alert("Erreur lors de la lecture du fichier Excel. Vérifiez que le fichier est valide.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Fonction pour réinitialiser l'upload de fichier
+  const handleClearFile = () => {
+    setCascadeFile(null);
+    setCascadeFileName("");
+    setCascadeText("");
+  };
+
   // Génération automatique de questions à partir du texte de cascade
   function handleGenerateCascade() {
     if (!cascadeText.trim() || !cascadeTargetQuestionId) {
@@ -617,7 +697,16 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
       let insertIdx = idx + 1;
       levels.forEach((level, levelIdx) => {
         // Générer les options pour ce niveau
-        const options = data.filter((row) => row.list_name === level).map((row) => row.name); // Utiliser row.name pour opt
+        const filteredData = data.filter((row) => row.list_name === level);
+        console.log(`[DEBUG] Données pour le niveau ${level}:`, filteredData);
+
+        const options = filteredData.map((row) => {
+          const option = row.label || row.name;
+          console.log(
+            `[DEBUG] Option pour ${row.name}: label="${row.label}", name="${row.name}", final="${option}"`
+          );
+          return option;
+        }); // Utiliser row.label pour l'affichage, fallback sur name
         // Génère un id unique pour la question
         const qId = `cascade_${level.toLowerCase()}_${Date.now()}_${Math.floor(
           Math.random() * 100000
@@ -657,12 +746,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
           question.modalities = options.map((opt, optIdx) => {
             const modality = {
               order: optIdx + 1, // L'ordre de la modalité
-              libelle:
-                data.find(
-                  (row) =>
-                    normalize(row.list_name) === normalize(level) &&
-                    normalize(row.name) === normalize(opt)
-                )?.label || opt, // Utiliser le label pour l'affichage
+              libelle: opt, // Utiliser directement opt (qui est maintenant le label)
               control_parameters: [],
               control_action: "show",
             };
@@ -670,25 +754,25 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
             // Si c'est une question enfant dans la cascade, ajouter parent_modality_libelle
             if (cascadeParent && levelIdx > 0) {
               // Chercher dans les données la ligne correspondante
-              // opt contient maintenant la valeur de la colonne name, donc chercher avec row.name
+              // opt contient maintenant la valeur de la colonne label, donc chercher avec row.label
               const correspondingRow = data.find(
                 (row) =>
                   normalize(row.list_name) === normalize(level) &&
-                  normalize(row.name) === normalize(opt)
+                  normalize(row.label) === normalize(opt)
               );
 
               // Debug: afficher ce qu'on cherche et ce qu'on trouve
               if (!correspondingRow) {
                 console.warn(`[CASCADE DEBUG] Ligne non trouvée pour ${level} / ${opt}`, {
-                  searched: { list_name: level, name: opt },
-                  normalized: { list_name: normalize(level), name: normalize(opt) },
+                  searched: { list_name: level, label: opt },
+                  normalized: { list_name: normalize(level), label: normalize(opt) },
                   availableData: data
                     .filter((row) => normalize(row.list_name) === normalize(level))
                     .map((row) => ({
                       list_name: row.list_name,
                       name: row.name,
                       label: row.label,
-                      normalized_name: normalize(row.name),
+                      normalized_label: normalize(row.label),
                     })),
                 });
               }
@@ -1488,7 +1572,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
 
           <Grid container spacing={2}>
             {questionTypes.map((type) => (
-              <Grid item xs={12} sm={6} md={4} key={type.value}>
+              <Grid item xs={12} sm={6} md={3} key={type.value}>
                 <Paper
                   onClick={() => updateType(selectedQuestionId, type.value)}
                   sx={{
@@ -1527,7 +1611,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                     sx={{
                       fontWeight: "600",
                       color: "#2c3e50",
-                      fontSize: "0.95rem",
+                      fontSize: "0.8rem",
                     }}
                   >
                     {type.label}
@@ -1569,7 +1653,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
         <Paper
           sx={{
             width: "90%",
-            maxWidth: 700,
+            maxWidth: 800,
             maxHeight: "90vh",
             overflow: "auto",
             borderRadius: 3,
@@ -1585,29 +1669,185 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
             >
               Créer une cascade de questions
             </Typography>
-            <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left" }}>
-              Collez ou écrivez ci-dessous la définition de votre cascade. Chaque ligne doit décrire
-              une condition ou une option. Exemple :<br />
-              <span style={{ fontStyle: "italic", color: "#555" }}>
-                Si A alors Option 1<br />
-                Si B alors Option 2<br />
-                Sinon Option 3
-              </span>
+            <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left", mb: 2 }}>
+              Choisissez votre méthode d&apos;entrée pour créer la cascade :
             </Typography>
+
+            {/* Sélecteur de mode d'entrée */}
+            <Box sx={{ mb: 3 }}>
+              <FormControl component="fieldset" sx={{ width: "100%" }}>
+                <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
+                  <Button
+                    variant={cascadeInputMode === "text" ? "contained" : "outlined"}
+                    onClick={() => setCascadeInputMode("text")}
+                    startIcon={<DescriptionIcon />}
+                    sx={{
+                      flex: 1,
+                      borderRadius: 2,
+                      background: cascadeInputMode === "text" ? "#77af0a" : "transparent",
+                      color: cascadeInputMode === "text" ? "#fff" : "#77af0a",
+                      borderColor: "#77af0a",
+                      "&:hover": {
+                        background:
+                          cascadeInputMode === "text" ? "#5a8a08" : "rgba(119, 175, 10, 0.04)",
+                      },
+                    }}
+                  >
+                    Saisie manuelle
+                  </Button>
+                  <Button
+                    variant={cascadeInputMode === "file" ? "contained" : "outlined"}
+                    onClick={() => setCascadeInputMode("file")}
+                    startIcon={<CloudUploadIcon />}
+                    sx={{
+                      flex: 1,
+                      borderRadius: 2,
+                      background: cascadeInputMode === "file" ? "#77af0a" : "transparent",
+                      color: cascadeInputMode === "file" ? "#fff" : "#77af0a",
+                      borderColor: "#77af0a",
+                      "&:hover": {
+                        background:
+                          cascadeInputMode === "file" ? "#5a8a08" : "rgba(119, 175, 10, 0.04)",
+                      },
+                    }}
+                  >
+                    Fichier Excel
+                  </Button>
+                </Box>
+              </FormControl>
+            </Box>
+
+            {/* Mode saisie manuelle */}
+            {cascadeInputMode === "text" && (
+              <>
+                <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left", mb: 2 }}>
+                  Collez ou écrivez ci-dessous la définition de votre cascade. Chaque ligne doit
+                  décrire une condition ou une option. Exemple :<br />
+                  <span style={{ fontStyle: "italic", color: "#555" }}>
+                    Si A alors Option 1<br />
+                    Si B alors Option 2<br />
+                    Sinon Option 3
+                  </span>
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={8}
+                  maxRows={16}
+                  value={cascadeText}
+                  onChange={(e) => setCascadeText(e.target.value)}
+                  placeholder="Définition de la cascade..."
+                  sx={{ mb: 3, background: "#fff", borderRadius: 2 }}
+                />
+              </>
+            )}
+
+            {/* Mode fichier Excel */}
+            {cascadeInputMode === "file" && (
+              <>
+                <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left", mb: 2 }}>
+                  Uploadez un fichier Excel (.xlsx, .xls) contenant vos données de cascade. Le
+                  fichier doit avoir des en-têtes et des données tabulées.
+                </Typography>
+
+                <Box sx={{ mb: 3 }}>
+                  {!cascadeFile ? (
+                    <Box
+                      sx={{
+                        border: "2px dashed #77af0a",
+                        borderRadius: 2,
+                        p: 4,
+                        textAlign: "center",
+                        background: "rgba(119, 175, 10, 0.05)",
+                        cursor: "pointer",
+                        "&:hover": {
+                          background: "rgba(119, 175, 10, 0.1)",
+                        },
+                      }}
+                      onClick={() => document.getElementById("excel-file-input").click()}
+                    >
+                      <CloudUploadIcon sx={{ fontSize: 48, color: "#77af0a", mb: 2 }} />
+                      <Typography variant="h6" sx={{ color: "#77af0a", mb: 1 }}>
+                        Cliquez pour sélectionner un fichier Excel
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "#7f8c8d" }}>
+                        Formats acceptés : .xlsx, .xls, .xlsm
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box
+                      sx={{
+                        border: "2px solid #77af0a",
+                        borderRadius: 2,
+                        p: 3,
+                        background: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <InsertDriveFileIcon sx={{ color: "#77af0a" }} />
+                        <Typography variant="body1" sx={{ fontWeight: "medium" }}>
+                          {cascadeFileName}
+                        </Typography>
+                      </Box>
+                      <Button
+                        onClick={handleClearFile}
+                        variant="outlined"
+                        size="small"
+                        sx={{
+                          borderColor: "#d32f2f",
+                          color: "#d32f2f",
+                          "&:hover": {
+                            borderColor: "#b71c1c",
+                            backgroundColor: "rgba(211, 47, 47, 0.04)",
+                          },
+                        }}
+                      >
+                        Supprimer
+                      </Button>
+                    </Box>
+                  )}
+
+                  <input
+                    id="excel-file-input"
+                    type="file"
+                    accept=".xlsx,.xls,.xlsm"
+                    onChange={handleFileUpload}
+                    style={{ display: "none" }}
+                  />
+                </Box>
+
+                {/* Aperçu des données parsées */}
+                {cascadeText && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: "bold", mb: 1 }}>
+                      Aperçu des données parsées :
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={4}
+                      maxRows={8}
+                      value={cascadeText}
+                      InputProps={{ readOnly: true }}
+                      sx={{ background: "#f5f5f5", borderRadius: 2 }}
+                    />
+                  </Box>
+                )}
+              </>
+            )}
           </Box>
-          <TextField
-            fullWidth
-            multiline
-            minRows={8}
-            maxRows={16}
-            value={cascadeText}
-            onChange={(e) => setCascadeText(e.target.value)}
-            placeholder="Définition de la cascade..."
-            sx={{ mb: 3, background: "#fff", borderRadius: 2 }}
-          />
+
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
             <Button
-              onClick={() => setCascadeModalOpen(false)}
+              onClick={() => {
+                setCascadeModalOpen(false);
+                setCascadeText("");
+                setCascadeFile(null);
+                setCascadeFileName("");
+              }}
               variant="outlined"
               sx={{
                 borderRadius: 2,
@@ -1625,6 +1865,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
             <Button
               onClick={handleGenerateCascade}
               variant="contained"
+              disabled={!cascadeText.trim()}
               sx={{ borderRadius: 2, px: 4, background: "#77af0a", color: "#fff" }}
             >
               Générer la cascade
