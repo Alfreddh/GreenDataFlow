@@ -13,6 +13,8 @@ import {
   Paper,
   Button,
   FormControl,
+  CircularProgress,
+  Chip,
 } from "@mui/material";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -917,31 +919,44 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            p: 4,
-            backgroundColor: "#fff",
-            borderRadius: 2,
-            boxShadow: "0 0 6px rgba(0,0,0,0.1)",
+            p: 6,
+            background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(119, 175, 10, 0.2)",
             mb: 3,
           }}
         >
-          <Typography variant="h6" color="text.secondary">
-            Chargement du formulaire...
-          </Typography>
+          <Box sx={{ textAlign: "center" }}>
+            <CircularProgress sx={{ color: "#fff", mb: 2 }} />
+            <Typography variant="h6" sx={{ color: "#fff", fontWeight: "600" }}>
+              Chargement du formulaire...
+            </Typography>
+          </Box>
         </Box>
       )}
 
       {/* Titre et description du formulaire */}
       <Box
         sx={{
-          backgroundColor: "#fff",
-          p: 3,
-          mb: 3,
-          borderRadius: 2,
-          boxShadow: "0 0 6px rgba(0,0,0,0.1)",
-          borderTop: "6px solid #77af0a", // vert app
-          borderLeft: "6px solid #77af0a", // vert app
+          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          p: 4,
+          mb: 4,
+          borderRadius: 3,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
+          border: "1px solid #e2e8f0",
           width: "95%",
           mx: "auto",
+          position: "relative",
+          overflow: "hidden",
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "4px",
+            background: "linear-gradient(90deg, #77af0a 0%, #52734d 100%)",
+          },
         }}
       >
         <TextField
@@ -952,12 +967,24 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
           InputProps={{
             disableUnderline: true,
             style: {
-              fontSize: 22,
-              fontWeight: "bold",
-              background: "#f5f5f5",
+              fontSize: 24,
+              fontWeight: "700",
+              background: "#f8fafc",
               minHeight: 60,
-              padding: "12px 14px 12px 14px",
-              borderBottom: "2px solid #000",
+              padding: "16px 20px",
+              borderRadius: 12,
+              border: "2px solid #e2e8f0",
+              transition: "all 0.3s ease",
+            },
+          }}
+          sx={{
+            "& .MuiInputBase-root:hover": {
+              borderColor: "#cbd5e1",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+            },
+            "& .MuiInputBase-root:focus-within": {
+              borderColor: "#77af0a",
+              boxShadow: "0 4px 12px rgba(119, 175, 10, 0.15)",
             },
           }}
           placeholder="Titre du formulaire"
@@ -971,14 +998,26 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
             disableUnderline: true,
             style: {
               fontSize: 16,
-              background: "#f5f5f5",
+              background: "#f8fafc",
               minHeight: 60,
-              padding: "12px 14px 12px 14px",
-              borderBottom: "2px solid #000",
+              padding: "16px 20px",
+              borderRadius: 12,
+              border: "2px solid #e2e8f0",
+              transition: "all 0.3s ease",
+            },
+          }}
+          sx={{
+            mt: 2,
+            "& .MuiInputBase-root:hover": {
+              borderColor: "#cbd5e1",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+            },
+            "& .MuiInputBase-root:focus-within": {
+              borderColor: "#77af0a",
+              boxShadow: "0 4px 12px rgba(119, 175, 10, 0.15)",
             },
           }}
           placeholder="Description du formulaire"
-          sx={{ mt: 2 }}
         />
       </Box>
 
@@ -990,25 +1029,40 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
             top: 20,
             right: 20,
             zIndex: 1000,
-            backgroundColor: "#fff",
-            borderRadius: 2,
-            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-            p: 2,
+            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+            p: 3,
             display: "flex",
-            gap: 1,
+            gap: 2,
             alignItems: "center",
+            border: "1px solid #e2e8f0",
+            backdropFilter: "blur(10px)",
           }}
         >
-          <Typography variant="body2" sx={{ color: "#666", mr: 1 }}>
-            {selectedQuestions.size} sélectionné(s)
-          </Typography>
+          <Chip
+            label={`${selectedQuestions.size} sélectionné(s)`}
+            size="small"
+            sx={{
+              backgroundColor: "#dcfce7",
+              color: "#166534",
+              fontWeight: "600",
+            }}
+          />
           <Button
             size="small"
             onClick={copySelectedQuestions}
             sx={{
-              backgroundColor: "#77af0a",
+              background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
               color: "white",
-              "&:hover": { backgroundColor: "#5a8a08" },
+              borderRadius: 2,
+              px: 2,
+              py: 0.5,
+              fontWeight: "600",
+              "&:hover": {
+                background: "linear-gradient(135deg, #6a991f 0%, #4a643c 100%)",
+                transform: "translateY(-1px)",
+              },
             }}
           >
             Copier (Ctrl+C)
@@ -1017,7 +1071,15 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
             size="small"
             variant="outlined"
             onClick={clearSelection}
-            sx={{ borderColor: "#ccc" }}
+            sx={{
+              borderColor: "#cbd5e1",
+              color: "#64748b",
+              borderRadius: 2,
+              "&:hover": {
+                borderColor: "#94a3b8",
+                backgroundColor: "#f8fafc",
+              },
+            }}
           >
             Annuler
           </Button>
@@ -1041,20 +1103,24 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                     key={q.id}
                     sx={{
                       position: "relative",
-                      p: 3,
-                      mb: 2,
-                      borderRadius: 2,
-                      background: "linear-gradient(90deg, #e8f5e9 0%, #f5f7fa 100%)",
-                      boxShadow: "0 0 10px rgba(119, 175, 10, 0.10)",
+                      p: 4,
+                      mb: 3,
+                      borderRadius: 3,
+                      background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+                      boxShadow: "0 8px 32px rgba(119, 175, 10, 0.1)",
                       width: "95%",
                       mx: "auto",
-                      borderLeft: "6px solid #77af0a",
+                      border: "1px solid #bbf7d0",
                       minHeight: 80,
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center",
                       alignItems: "flex-start",
-                      transition: "all 0.2s",
+                      transition: "all 0.3s ease",
+                      "&:hover": {
+                        boxShadow: "0 12px 40px rgba(119, 175, 10, 0.15)",
+                        transform: "translateY(-2px)",
+                      },
                     }}
                     onClick={() => setEditingSectionId(q.id)}
                   >
@@ -1064,7 +1130,14 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           e.stopPropagation();
                           toggleSectionCollapse(q.id);
                         }}
-                        sx={{ mr: 1 }}
+                        sx={{
+                          mr: 2,
+                          backgroundColor: "#ffffff",
+                          borderRadius: 2,
+                          "&:hover": {
+                            backgroundColor: "#f0f9ff",
+                          },
+                        }}
                       >
                         {isCollapsed ? <ArrowDropDownIcon /> : <ArrowDropUpIcon />}
                       </IconButton>
@@ -1079,12 +1152,13 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           InputProps={{
                             disableUnderline: true,
                             style: {
-                              fontWeight: "bold",
-                              fontSize: 20,
-                              background: "#f5f5f5",
-                              minHeight: 40,
-                              padding: "8px 14px 8px 14px",
-                              borderBottom: "2px solid #000",
+                              fontWeight: "700",
+                              fontSize: 22,
+                              background: "#ffffff",
+                              minHeight: 50,
+                              padding: "12px 16px",
+                              borderRadius: 8,
+                              border: "2px solid #0ea5e9",
                             },
                           }}
                           sx={{ flex: 1, mr: 2 }}
@@ -1092,63 +1166,118 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                         />
                       ) : (
                         <Typography
-                          fontWeight="bold"
-                          fontSize={20}
-                          sx={{ flex: 1, cursor: "pointer" }}
+                          fontWeight="700"
+                          fontSize={22}
+                          sx={{
+                            flex: 1,
+                            cursor: "pointer",
+                            color: "#0c4a6e",
+                            "&:hover": {
+                              color: "#0369a1",
+                            },
+                          }}
                         >
                           {q.label}
                         </Typography>
                       )}
                       {/* Actions section : + (dans), + (hors), section, edit, delete */}
-                      <Tooltip title="Ajouter une question dans la section">
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addQuestionInSection(q.id);
-                          }}
-                          sx={{ color: "#77af0a" }}
-                        >
-                          <AddIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Ajouter une question en dehors de la section">
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addQuestionAfterSection(q.id);
-                          }}
-                          sx={{ color: "#000000" }}
-                        >
-                          <AddIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Ajouter une section en dessous">
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addSectionAfter(q.id);
-                          }}
-                          sx={{ color: "#77af0a" }}
-                        >
-                          <ViewListIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <IconButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingSectionId(q.id);
-                        }}
-                      >
-                        <TextFieldsIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteSectionAndQuestions(q.id);
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+                      <Box sx={{ display: "flex", gap: 1 }}>
+                        <Tooltip title="Ajouter une question dans la section">
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addQuestionInSection(q.id);
+                            }}
+                            sx={{
+                              color: "#0ea5e9",
+                              backgroundColor: "#ffffff",
+                              borderRadius: 2,
+                              "&:hover": {
+                                backgroundColor: "#f0f9ff",
+                                transform: "scale(1.1)",
+                              },
+                            }}
+                          >
+                            <AddIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Ajouter une question en dehors de la section">
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addQuestionAfterSection(q.id);
+                            }}
+                            sx={{
+                              color: "#64748b",
+                              backgroundColor: "#ffffff",
+                              borderRadius: 2,
+                              "&:hover": {
+                                backgroundColor: "#f8fafc",
+                                transform: "scale(1.1)",
+                              },
+                            }}
+                          >
+                            <AddIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Ajouter une section en dessous">
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addSectionAfter(q.id);
+                            }}
+                            sx={{
+                              color: "#0ea5e9",
+                              backgroundColor: "#ffffff",
+                              borderRadius: 2,
+                              "&:hover": {
+                                backgroundColor: "#f0f9ff",
+                                transform: "scale(1.1)",
+                              },
+                            }}
+                          >
+                            <ViewListIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Modifier la section">
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingSectionId(q.id);
+                            }}
+                            sx={{
+                              color: "#64748b",
+                              backgroundColor: "#ffffff",
+                              borderRadius: 2,
+                              "&:hover": {
+                                backgroundColor: "#f8fafc",
+                                transform: "scale(1.1)",
+                              },
+                            }}
+                          >
+                            <TextFieldsIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Supprimer la section">
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSectionAndQuestions(q.id);
+                            }}
+                            sx={{
+                              color: "#ef4444",
+                              backgroundColor: "#ffffff",
+                              borderRadius: 2,
+                              "&:hover": {
+                                backgroundColor: "#fef2f2",
+                                transform: "scale(1.1)",
+                              },
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </Box>
                     {!isCollapsed && (
                       <TextField
@@ -1159,14 +1288,25 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                         InputProps={{
                           disableUnderline: true,
                           style: {
-                            fontSize: 15,
-                            background: "#f5f5f5",
-                            minHeight: 30,
-                            padding: "8px 14px 8px 14px",
-                            borderBottom: "1px solid #bbb",
+                            fontSize: 16,
+                            background: "#ffffff",
+                            minHeight: 40,
+                            padding: "12px 16px",
+                            borderRadius: 8,
+                            border: "1px solid #e2e8f0",
+                            marginTop: 12,
                           },
                         }}
-                        sx={{ mt: 1, width: "100%" }}
+                        sx={{
+                          mt: 2,
+                          width: "100%",
+                          "& .MuiInputBase-root:hover": {
+                            borderColor: "#cbd5e1",
+                          },
+                          "& .MuiInputBase-root:focus-within": {
+                            borderColor: "#667eea",
+                          },
+                        }}
                         multiline
                         maxRows={3}
                         onClick={(e) => e.stopPropagation()}
@@ -1195,22 +1335,29 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                     }}
                     sx={{
                       position: "relative",
-                      p: q.active ? 3 : 2,
-                      mb: 2,
-                      borderRadius: 2,
-                      backgroundColor: selectedQuestions.has(q.id) ? "#f0f8ff" : "#fff",
+                      p: q.active ? 4 : 3,
+                      mb: 3,
+                      borderRadius: 3,
+                      backgroundColor: selectedQuestions.has(q.id)
+                        ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
+                        : "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
                       boxShadow: selectedQuestions.has(q.id)
-                        ? "0 0 12px rgba(119, 175, 10, 0.3)"
-                        : "0 0 6px rgba(0,0,0,0.1)",
+                        ? "0 12px 40px rgba(119, 175, 10, 0.15)"
+                        : "0 8px 32px rgba(0,0,0,0.08)",
                       width: "95%",
                       mx: "auto",
                       cursor: "pointer",
-                      minHeight: q.active ? 120 : "auto",
-                      transition: "all 0.2s",
-                      borderLeft: q.active ? "6px solid #77af0a" : "none",
-                      border: selectedQuestions.has(q.id) ? "2px solid #77af0a" : "none",
+                      minHeight: q.active ? 140 : "auto",
+                      transition: "all 0.3s ease",
+                      border: selectedQuestions.has(q.id)
+                        ? "2px solid #77af0a"
+                        : "1px solid #e2e8f0",
                       "&:hover": {
-                        backgroundColor: selectedQuestions.has(q.id) ? "#e6f3ff" : "#f8f9fa",
+                        backgroundColor: selectedQuestions.has(q.id)
+                          ? "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)"
+                          : "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+                        transform: "translateY(-2px)",
+                        boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
                       },
                       ...(isInSection
                         ? {
@@ -1218,7 +1365,9 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                             mr: 4,
                             width: "88%",
                             mx: "auto",
-                            backgroundColor: selectedQuestions.has(q.id) ? "#f7faee" : "#fcfdf7",
+                            backgroundColor: selectedQuestions.has(q.id)
+                              ? "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)"
+                              : "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
                           }
                         : {}),
                     }}
@@ -1232,7 +1381,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                             top: 8,
                             bottom: 8,
                             width: 6,
-                            backgroundColor: "#fff",
+                            background: "linear-gradient(180deg, #77af0a 0%, #52734d 100%)",
                             borderTopRightRadius: 4,
                             borderBottomRightRadius: 4,
                           }}
@@ -1243,17 +1392,18 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                             right: -60,
                             top: "50%",
                             transform: "translateY(-50%)",
-                            height: 170,
+                            height: 180,
                             width: 50,
-                            backgroundColor: "#fff",
-                            borderRadius: 2,
-                            boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)",
+                            background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                            borderRadius: 3,
+                            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "center",
                             justifyContent: "center",
                             gap: 0.5,
                             p: 1,
+                            border: "1px solid #e2e8f0",
                           }}
                         >
                           <Tooltip title="Ajouter une question" placement="left">
@@ -1262,14 +1412,30 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                                 e.stopPropagation();
                                 addNewQuestion(q.id);
                               }}
-                              sx={{ color: "#000000" }}
+                              sx={{
+                                color: "#64748b",
+                                backgroundColor: "#f1f5f9",
+                                borderRadius: 2,
+                                "&:hover": {
+                                  backgroundColor: "#e2e8f0",
+                                  transform: "scale(1.1)",
+                                },
+                              }}
                             >
                               <AddIcon />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Créer une cascade" placement="left">
                             <IconButton
-                              sx={{ color: "#666" }}
+                              sx={{
+                                color: "#64748b",
+                                backgroundColor: "#f1f5f9",
+                                borderRadius: 2,
+                                "&:hover": {
+                                  backgroundColor: "#e2e8f0",
+                                  transform: "scale(1.1)",
+                                },
+                              }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setCascadeTargetQuestionId(q.id);
@@ -1281,7 +1447,15 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           </Tooltip>
                           <Tooltip title="Ajouter une section" placement="left">
                             <IconButton
-                              sx={{ color: "#77af0a" }}
+                              sx={{
+                                color: "#77af0a",
+                                backgroundColor: "#f1f5f9",
+                                borderRadius: 2,
+                                "&:hover": {
+                                  backgroundColor: "#f0fdf4",
+                                  transform: "scale(1.1)",
+                                },
+                              }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 addSectionAfter(q.id);
@@ -1291,7 +1465,17 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Ajouter une note" placement="left">
-                            <IconButton sx={{ color: "#666" }}>
+                            <IconButton
+                              sx={{
+                                color: "#64748b",
+                                backgroundColor: "#f1f5f9",
+                                borderRadius: 2,
+                                "&:hover": {
+                                  backgroundColor: "#e2e8f0",
+                                  transform: "scale(1.1)",
+                                },
+                              }}
+                            >
                               <NoteIcon />
                             </IconButton>
                           </Tooltip>
@@ -1310,15 +1494,27 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           InputProps={{
                             disableUnderline: true,
                             style: {
-                              fontWeight: "bold",
-                              fontSize: 18,
-                              background: "#f5f5f5",
+                              fontWeight: "700",
+                              fontSize: 20,
+                              background: "#f8fafc",
                               minHeight: 60,
-                              padding: "12px 14px 12px 14px",
-                              borderBottom: "2px solid #000",
+                              padding: "16px 20px",
+                              borderRadius: 12,
+                              border: "2px solid #e2e8f0",
+                              transition: "all 0.3s ease",
                             },
                           }}
-                          sx={{ mb: 1 }}
+                          sx={{
+                            mb: 2,
+                            "& .MuiInputBase-root:hover": {
+                              borderColor: "#cbd5e1",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                            },
+                            "& .MuiInputBase-root:focus-within": {
+                              borderColor: "#77af0a",
+                              boxShadow: "0 4px 12px rgba(119, 175, 10, 0.15)",
+                            },
+                          }}
                           onClick={(e) => e.stopPropagation()}
                         />
                         <Box
@@ -1326,7 +1522,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
-                            mb: 1,
+                            mb: 2,
                           }}
                         >
                           <Box
@@ -1335,18 +1531,18 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                               alignItems: "center",
                               gap: 1,
                               fontSize: "17px",
-                              height: 48,
+                              height: 52,
                               borderRadius: 3,
-                              border: "2px solid #e0e0e0",
+                              border: "2px solid #e2e8f0",
                               backgroundColor: "#ffffff",
                               cursor: "pointer",
                               transition: "all 0.3s ease",
-                              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                              px: 2,
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                              px: 3,
                               "&:hover": {
                                 borderColor: "#77af0a",
-                                backgroundColor: "#f8fff0",
-                                boxShadow: "0 4px 16px rgba(119, 175, 10, 0.15)",
+                                backgroundColor: "#f0fdf4",
+                                boxShadow: "0 8px 24px rgba(119, 175, 10, 0.15)",
                                 transform: "translateY(-1px)",
                               },
                               "&:active": {
@@ -1360,20 +1556,31 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           >
                             <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
                               {typeIcons[q.type]}
-                              <span style={{ fontWeight: "500", color: "#2c3e50" }}>
+                              <span style={{ fontWeight: "600", color: "#1e293b" }}>
                                 {questionTypes.find((type) => type.value === q.type)?.label}
                               </span>
                             </Box>
                           </Box>
 
-                          <Box display="flex" alignItems="center" gap={1}>
+                          <Box display="flex" alignItems="center" gap={2}>
                             <Switch
                               checked={q.required}
                               onChange={() => toggleRequired(q.id)}
                               size="medium"
                               onClick={(e) => e.stopPropagation()}
+                              sx={{
+                                "& .MuiSwitch-switchBase.Mui-checked": {
+                                  color: "#667eea",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(102, 126, 234, 0.08)",
+                                  },
+                                },
+                                "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                                  backgroundColor: "#667eea",
+                                },
+                              }}
                             />
-                            <Typography fontSize={16} color="#555">
+                            <Typography fontSize={16} color="#64748b" fontWeight="500">
                               Réponse obligatoire
                             </Typography>
                           </Box>
@@ -1384,7 +1591,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           q.type === "liste_deroulante" ||
                           q.type === "binaire") && (
                           <Box sx={{ ml: 2, mt: 3 }}>
-                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
                               {(q.type === "binaire"
                                 ? q.options.length === 2
                                   ? q.options
@@ -1420,10 +1627,13 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                                         {q.type === "choix_unique" || q.type === "binaire" ? (
                                           <RadioButtonCheckedIcon
                                             fontSize="small"
-                                            sx={{ color: "#666" }}
+                                            sx={{ color: "#77af0a" }}
                                           />
                                         ) : q.type === "choix_multiple" ? (
-                                          <CheckBoxIcon fontSize="small" sx={{ color: "#666" }} />
+                                          <CheckBoxIcon
+                                            fontSize="small"
+                                            sx={{ color: "#77af0a" }}
+                                          />
                                         ) : (
                                           "•"
                                         )}
@@ -1434,21 +1644,37 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                                         <IconButton
                                           size="small"
                                           onClick={() => deleteOption(q.id, idx)}
+                                          sx={{
+                                            color: "#ef4444",
+                                            "&:hover": {
+                                              backgroundColor: "#fef2f2",
+                                            },
+                                          }}
                                         >
                                           <DeleteIcon fontSize="small" />
                                         </IconButton>
                                       ) : null,
                                     style: {
-                                      background: "#f5f5f5",
-                                      minHeight: 45,
-                                      padding: "8px 14px 8px 14px",
-                                      borderBottom: "2px solid #000",
+                                      background: "#f8fafc",
+                                      minHeight: 50,
+                                      padding: "12px 16px",
+                                      borderRadius: 12,
+                                      border: "2px solid #e2e8f0",
+                                      transition: "all 0.3s ease",
                                     },
                                   }}
                                   sx={{
-                                    mb: 1,
+                                    mb: 2,
                                     width: "calc(50% - 8px)",
-                                    minWidth: "200px",
+                                    minWidth: "220px",
+                                    "& .MuiInputBase-root:hover": {
+                                      borderColor: "#cbd5e1",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                                    },
+                                    "& .MuiInputBase-root:focus-within": {
+                                      borderColor: "#667eea",
+                                      boxShadow: "0 4px 12px rgba(102, 126, 234, 0.15)",
+                                    },
                                   }}
                                   disabled={false}
                                 />
@@ -1459,8 +1685,8 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                                 sx={{
                                   display: "flex",
                                   alignItems: "center",
-                                  gap: 1,
-                                  mt: 1,
+                                  gap: 2,
+                                  mt: 2,
                                   fontSize: 16,
                                 }}
                               >
@@ -1471,16 +1697,21 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                                   }}
                                   sx={{
                                     cursor: "pointer",
-                                    color: "#000",
-                                    fontWeight: 500,
+                                    color: "#77af0a",
+                                    fontWeight: "600",
+                                    padding: "8px 16px",
+                                    borderRadius: 2,
+                                    backgroundColor: "#f0fdf4",
+                                    transition: "all 0.3s ease",
                                     "&:hover": {
-                                      textDecoration: "underline",
+                                      backgroundColor: "#dcfce7",
+                                      transform: "translateY(-1px)",
                                     },
                                   }}
                                 >
                                   Ajouter une option
                                 </Box>
-                                <Box sx={{ color: "#000" }}>ou</Box>
+                                <Box sx={{ color: "#64748b" }}>ou</Box>
                                 <Box
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1488,10 +1719,15 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                                   }}
                                   sx={{
                                     cursor: "pointer",
-                                    color: "#000000",
-                                    fontWeight: 500,
+                                    color: "#64748b",
+                                    fontWeight: "600",
+                                    padding: "8px 16px",
+                                    borderRadius: 2,
+                                    backgroundColor: "#f8fafc",
+                                    transition: "all 0.3s ease",
                                     "&:hover": {
-                                      textDecoration: "underline",
+                                      backgroundColor: "#f1f5f9",
+                                      transform: "translateY(-1px)",
                                     },
                                   }}
                                 >
@@ -1502,28 +1738,84 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           </Box>
                         )}
 
-                        <Box display="flex" gap={1} mt={1}>
-                          <IconButton onClick={() => copyQuestion(q.id)}>
-                            <ContentCopyIcon sx={{ fontSize: 28 }} />
-                          </IconButton>
-                          <IconButton onClick={() => deleteQuestion(q.id)}>
-                            <DeleteIcon sx={{ fontSize: 28 }} />
-                          </IconButton>
-                          <IconButton onClick={() => alert("Options supplémentaires à venir")}>
-                            <MoreVertIcon sx={{ fontSize: 28 }} />
-                          </IconButton>
+                        <Box display="flex" gap={1} mt={2}>
+                          <Tooltip title="Copier la question">
+                            <IconButton
+                              onClick={() => copyQuestion(q.id)}
+                              sx={{
+                                color: "#64748b",
+                                backgroundColor: "#f1f5f9",
+                                borderRadius: 2,
+                                "&:hover": {
+                                  backgroundColor: "#e2e8f0",
+                                  transform: "scale(1.1)",
+                                },
+                              }}
+                            >
+                              <ContentCopyIcon sx={{ fontSize: 24 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Supprimer la question">
+                            <IconButton
+                              onClick={() => deleteQuestion(q.id)}
+                              sx={{
+                                color: "#ef4444",
+                                backgroundColor: "#fef2f2",
+                                borderRadius: 2,
+                                "&:hover": {
+                                  backgroundColor: "#fee2e2",
+                                  transform: "scale(1.1)",
+                                },
+                              }}
+                            >
+                              <DeleteIcon sx={{ fontSize: 24 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Plus d'options">
+                            <IconButton
+                              onClick={() => alert("Options supplémentaires à venir")}
+                              sx={{
+                                color: "#64748b",
+                                backgroundColor: "#f1f5f9",
+                                borderRadius: 2,
+                                "&:hover": {
+                                  backgroundColor: "#e2e8f0",
+                                  transform: "scale(1.1)",
+                                },
+                              }}
+                            >
+                              <MoreVertIcon sx={{ fontSize: 24 }} />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                       </>
                     ) : (
                       <>
-                        <Typography fontWeight="bold" fontSize={16}>
+                        <Typography fontWeight="700" fontSize={18} color="#1e293b">
                           {q.label || "Sans intitulé"}
-                          {q.required && <span style={{ color: "red", marginLeft: 4 }}>*</span>}
+                          {q.required && (
+                            <Chip
+                              label="Obligatoire"
+                              size="small"
+                              sx={{
+                                ml: 1,
+                                backgroundColor: "#fef2f2",
+                                color: "#dc2626",
+                                fontSize: "10px",
+                                height: "20px",
+                              }}
+                            />
+                          )}
                         </Typography>
                         <Typography
                           fontSize={14}
-                          color="#666"
-                          sx={{ mt: 1, display: "flex", alignItems: "center" }}
+                          color="#64748b"
+                          sx={{
+                            mt: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            fontWeight: "500",
+                          }}
                         >
                           {typeIcons[q.type]}
                           {questionTypes.find((type) => type.value === q.type)?.label}

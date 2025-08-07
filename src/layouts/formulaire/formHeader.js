@@ -19,6 +19,10 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
+  Chip,
+  Tooltip,
+  Fade,
+  Slide,
 } from "@mui/material";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -26,6 +30,8 @@ import UndoIcon from "@mui/icons-material/Undo";
 import RedoIcon from "@mui/icons-material/Redo";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonIcon from "@mui/icons-material/Person";
+import SaveIcon from "@mui/icons-material/Save";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import QuestionPage from "./question";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -825,11 +831,13 @@ export default function FormHeader() {
     return (
       <Box sx={{ maxWidth: 800, mx: "auto", mt: 4, mb: 4 }}>
         <Paper
-          elevation={3}
+          elevation={0}
           sx={{
             p: 4,
-            borderRadius: 2,
+            borderRadius: 3,
             backgroundColor: "#fff",
+            border: "1px solid #e8f0fe",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
           }}
         >
           {formImage && (
@@ -841,25 +849,75 @@ export default function FormHeader() {
                   maxWidth: "100%",
                   maxHeight: "200px",
                   objectFit: "contain",
+                  borderRadius: 12,
                 }}
               />
             </Box>
           )}
-          {/* Réduction de la taille du titre du formulaire */}
-          <Typography variant="h4" sx={{ mb: 2, fontWeight: "bold", fontSize: "20px" }}>
+          <Typography
+            variant="h4"
+            sx={{
+              mb: 2,
+              fontWeight: "700",
+              fontSize: "24px",
+              background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
             {title}
           </Typography>
-          {/* Réduction de la taille de la description */}
-          <Typography variant="body1" sx={{ mb: 4, color: "#666", fontSize: "14px" }}>
+          <Typography
+            variant="body1"
+            sx={{
+              mb: 4,
+              color: "#64748b",
+              fontSize: "16px",
+              lineHeight: 1.6,
+            }}
+          >
             {localStorage.getItem("formDescription") || ""}
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {JSON.parse(localStorage.getItem("formQuestions") || "[]").map((question) => (
-              <Box key={question.id}>
-                {/* Réduction de la taille des questions */}
-                <Typography variant="h6" sx={{ mb: 2, fontSize: "15px" }}>
+              <Box
+                key={question.id}
+                sx={{
+                  p: 3,
+                  borderRadius: 2,
+                  border: "1px solid #f1f5f9",
+                  backgroundColor: "#fafbfc",
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    borderColor: "#e2e8f0",
+                    backgroundColor: "#f8fafc",
+                  },
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{
+                    mb: 2,
+                    fontSize: "16px",
+                    fontWeight: "600",
+                    color: "#1e293b",
+                  }}
+                >
                   {question.label}
-                  {question.required && <span style={{ color: "red", marginLeft: 4 }}>*</span>}
+                  {question.required && (
+                    <Chip
+                      label="Obligatoire"
+                      size="small"
+                      sx={{
+                        ml: 1,
+                        backgroundColor: "#fef2f2",
+                        color: "#dc2626",
+                        fontSize: "10px",
+                        height: "20px",
+                      }}
+                    />
+                  )}
                 </Typography>
                 {question.type === "texte" && (
                   <TextField
@@ -868,6 +926,17 @@ export default function FormHeader() {
                     placeholder="Votre réponse"
                     multiline
                     rows={2}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        backgroundColor: "#fff",
+                        "&:hover": {
+                          "& .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "#cbd5e1",
+                          },
+                        },
+                      },
+                    }}
                   />
                 )}
                 {question.type === "nombre_entier" && (
@@ -877,6 +946,12 @@ export default function FormHeader() {
                     variant="outlined"
                     placeholder="Entrez un nombre entier"
                     inputProps={{ step: 1 }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        backgroundColor: "#fff",
+                      },
+                    }}
                   />
                 )}
                 {question.type === "nombre_decimal" && (
@@ -886,13 +961,30 @@ export default function FormHeader() {
                     variant="outlined"
                     placeholder="Entrez un nombre décimal"
                     inputProps={{ step: "any" }}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        backgroundColor: "#fff",
+                      },
+                    }}
                   />
                 )}
                 {question.type === "binaire" && (
                   <RadioGroup>
                     {(question.options.length === 2 ? question.options : ["Oui", "Non"]).map(
                       (opt, idx) => (
-                        <FormControlLabel key={idx} value={opt} control={<Radio />} label={opt} />
+                        <FormControlLabel
+                          key={idx}
+                          value={opt}
+                          control={<Radio />}
+                          label={opt}
+                          sx={{
+                            "& .MuiFormControlLabel-label": {
+                              fontSize: "14px",
+                              color: "#475569",
+                            },
+                          }}
+                        />
                       )
                     )}
                   </RadioGroup>
@@ -900,14 +992,35 @@ export default function FormHeader() {
                 {question.type === "choix_unique" && (
                   <RadioGroup>
                     {question.options.map((opt, idx) => (
-                      <FormControlLabel key={idx} value={opt} control={<Radio />} label={opt} />
+                      <FormControlLabel
+                        key={idx}
+                        value={opt}
+                        control={<Radio />}
+                        label={opt}
+                        sx={{
+                          "& .MuiFormControlLabel-label": {
+                            fontSize: "14px",
+                            color: "#475569",
+                          },
+                        }}
+                      />
                     ))}
                   </RadioGroup>
                 )}
                 {question.type === "choix_multiple" && (
                   <FormGroup>
                     {question.options.map((opt, idx) => (
-                      <FormControlLabel key={idx} control={<Checkbox />} label={opt} />
+                      <FormControlLabel
+                        key={idx}
+                        control={<Checkbox />}
+                        label={opt}
+                        sx={{
+                          "& .MuiFormControlLabel-label": {
+                            fontSize: "14px",
+                            color: "#475569",
+                          },
+                        }}
+                      />
                     ))}
                   </FormGroup>
                 )}
@@ -919,12 +1032,17 @@ export default function FormHeader() {
                         textField: {
                           fullWidth: true,
                           variant: "outlined",
+                          sx: {
+                            "& .MuiOutlinedInput-root": {
+                              borderRadius: 2,
+                              backgroundColor: "#fff",
+                            },
+                          },
                         },
                         actionBar: {
                           actions: ["accept", "cancel", "clear"],
                         },
                       }}
-                      sx={{ "& .MuiInputBase-root": { backgroundColor: "white" } }}
                     />
                   </LocalizationProvider>
                 )}
@@ -942,6 +1060,15 @@ export default function FormHeader() {
                         component="span"
                         startIcon={<AddPhotoAlternateIcon />}
                         fullWidth
+                        sx={{
+                          borderRadius: 2,
+                          borderColor: "#cbd5e1",
+                          color: "#64748b",
+                          "&:hover": {
+                            borderColor: "#94a3b8",
+                            backgroundColor: "#f8fafc",
+                          },
+                        }}
                       >
                         Ajouter un média
                       </Button>
@@ -969,6 +1096,12 @@ export default function FormHeader() {
                       onChange={(e) =>
                         setResponses((prev) => ({ ...prev, [question.id]: e.target.value }))
                       }
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
                     />
                   </Box>
                 )}
@@ -984,6 +1117,12 @@ export default function FormHeader() {
                       onChange={(e) =>
                         setResponses((prev) => ({ ...prev, [question.id]: e.target.value }))
                       }
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
                     />
                   </Box>
                 )}
@@ -998,9 +1137,20 @@ export default function FormHeader() {
   if (loading) {
     return (
       <Box
-        sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+          background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
+        }}
       >
-        <CircularProgress />
+        <Box sx={{ textAlign: "center" }}>
+          <CircularProgress sx={{ color: "#fff", mb: 2 }} />
+          <Typography sx={{ color: "#fff", fontSize: "18px" }}>
+            Chargement du formulaire...
+          </Typography>
+        </Box>
       </Box>
     );
   }
@@ -1016,18 +1166,20 @@ export default function FormHeader() {
   return (
     <>
       <Paper
-        elevation={3}
+        elevation={0}
         sx={{
           width: "100%",
           borderRadius: 0,
-          borderBottom: "1px solid #e0e0e0",
-          backgroundColor: "#ffffff",
+          borderBottom: "1px solid #e2e8f0",
+          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          backdropFilter: "blur(10px)",
           zIndex: 10,
           position: "fixed",
           top: 0,
           left: 0,
           right: 0,
           height: "100px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
         }}
       >
         <Toolbar
@@ -1040,7 +1192,7 @@ export default function FormHeader() {
             py: 2,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
             <img src="/favicon.png" alt="logo" style={{ width: 40, height: 40 }} />
             <TextField
               variant="standard"
@@ -1050,13 +1202,23 @@ export default function FormHeader() {
               InputProps={{
                 disableUnderline: false,
                 sx: {
-                  fontWeight: "bold",
-                  fontSize: "18px",
+                  fontWeight: "600",
+                  fontSize: "20px",
                   minHeight: 45,
                   padding: "8px 14px 8px 20px",
+                  color: "#1e293b",
+                  "&:before": {
+                    borderBottom: "2px solid #e2e8f0",
+                  },
+                  "&:hover:before": {
+                    borderBottom: "2px solid #cbd5e1",
+                  },
+                  "&:after": {
+                    borderBottom: "2px solid #77af0a",
+                  },
                 },
               }}
-              sx={{ width: 250 }}
+              sx={{ width: 300 }}
             />
             <input
               type="file"
@@ -1065,77 +1227,156 @@ export default function FormHeader() {
               ref={fileInputRef}
               onChange={handleImageChange}
             />
-            <IconButton
-              sx={{
-                backgroundColor: "#e0e0e0",
-                borderRadius: "10px",
-                width: 40,
-                height: 40,
-                overflow: "hidden",
-                "&:hover": {
-                  backgroundColor: "#000000",
-                  "& .MuiSvgIcon-root": { color: "#ffffff" },
-                },
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              onClick={handleImageClick}
-            >
-              {formImage ? (
-                <img
-                  src={formImage}
-                  alt="form"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <AddPhotoAlternateIcon sx={{ color: "#666", fontSize: 28 }} />
-              )}
-            </IconButton>
+            <Tooltip title="Ajouter une image de couverture">
+              <IconButton
+                sx={{
+                  backgroundColor: "#f1f5f9",
+                  borderRadius: "12px",
+                  width: 48,
+                  height: 48,
+                  overflow: "hidden",
+                  border: "2px solid #e2e8f0",
+                  transition: "all 0.3s ease",
+                  "&:hover": {
+                    backgroundColor: "#e2e8f0",
+                    borderColor: "#cbd5e1",
+                    transform: "scale(1.05)",
+                  },
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                onClick={handleImageClick}
+              >
+                {formImage ? (
+                  <img
+                    src={formImage}
+                    alt="form"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                    }}
+                  />
+                ) : (
+                  <AddPhotoAlternateIcon sx={{ color: "#64748b", fontSize: 24 }} />
+                )}
+              </IconButton>
+            </Tooltip>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <IconButton sx={{ color: "rgba(0,0,0,0.6)" }} onClick={handlePreview}>
-              <VisibilityIcon />
-            </IconButton>
-            <IconButton
-              sx={{
-                color: currentHistoryIndex > 0 ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.2)",
-                cursor: currentHistoryIndex > 0 ? "pointer" : "not-allowed",
-              }}
-              onClick={handleUndo}
-              disabled={currentHistoryIndex <= 0}
-            >
-              <UndoIcon />
-            </IconButton>
-            <IconButton
-              sx={{
-                color:
-                  currentHistoryIndex < history.length - 1 ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.2)",
-                cursor: currentHistoryIndex < history.length - 1 ? "pointer" : "not-allowed",
-              }}
-              onClick={handleRedo}
-              disabled={currentHistoryIndex >= history.length - 1}
-            >
-              <RedoIcon />
-            </IconButton>
+            <Tooltip title="Aperçu du formulaire">
+              <IconButton
+                sx={{
+                  color: "#64748b",
+                  backgroundColor: "#f1f5f9",
+                  borderRadius: "10px",
+                  width: 40,
+                  height: 40,
+                  "&:hover": {
+                    backgroundColor: "#e2e8f0",
+                    color: "#475569",
+                  },
+                }}
+                onClick={handlePreview}
+              >
+                <VisibilityIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Annuler (Ctrl+Z)">
+              <IconButton
+                sx={{
+                  color: currentHistoryIndex > 0 ? "#64748b" : "#cbd5e1",
+                  backgroundColor: "#f1f5f9",
+                  borderRadius: "10px",
+                  width: 40,
+                  height: 40,
+                  cursor: currentHistoryIndex > 0 ? "pointer" : "not-allowed",
+                  "&:hover": {
+                    backgroundColor: currentHistoryIndex > 0 ? "#e2e8f0" : "#f1f5f9",
+                    color: currentHistoryIndex > 0 ? "#475569" : "#cbd5e1",
+                  },
+                }}
+                onClick={handleUndo}
+                disabled={currentHistoryIndex <= 0}
+              >
+                <UndoIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Rétablir (Ctrl+Y)">
+              <IconButton
+                sx={{
+                  color: currentHistoryIndex < history.length - 1 ? "#64748b" : "#cbd5e1",
+                  backgroundColor: "#f1f5f9",
+                  borderRadius: "10px",
+                  width: 40,
+                  height: 40,
+                  cursor: currentHistoryIndex < history.length - 1 ? "pointer" : "not-allowed",
+                  "&:hover": {
+                    backgroundColor:
+                      currentHistoryIndex < history.length - 1 ? "#e2e8f0" : "#f1f5f9",
+                    color: currentHistoryIndex < history.length - 1 ? "#475569" : "#cbd5e1",
+                  },
+                }}
+                onClick={handleRedo}
+                disabled={currentHistoryIndex >= history.length - 1}
+              >
+                <RedoIcon />
+              </IconButton>
+            </Tooltip>
             <Button
               variant="contained"
+              startIcon={<SaveIcon />}
               sx={{
-                ml: 1,
-                backgroundColor: "#77af0a", // vert app
+                ml: 2,
+                background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
                 color: "#ffffff",
-                fontWeight: "bold",
-                "&:hover": { backgroundColor: "#689c09" }, // vert foncé app
+                fontWeight: "600",
+                borderRadius: "12px",
+                px: 3,
+                py: 1,
+                boxShadow: "0 4px 12px rgba(119, 175, 10, 0.3)",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #6a991f 0%, #4a643c 100%)",
+                  boxShadow: "0 6px 20px rgba(119, 175, 10, 0.4)",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": {
+                  transform: "translateY(0px)",
+                },
               }}
               onClick={handleSave}
             >
-              Enregistrer{hasUnsavedChanges ? " *" : ""}
+              {hasUnsavedChanges ? "Enregistrer *" : "Enregistrer"}
             </Button>
-            <IconButton>
-              <MoreVertIcon />
-            </IconButton>
-            <Avatar sx={{ bgcolor: "#e0e0e0", width: 32, height: 32 }}>
-              <PersonIcon sx={{ color: "black" }} />
+            <Tooltip title="Plus d'options">
+              <IconButton
+                sx={{
+                  color: "#64748b",
+                  backgroundColor: "#f1f5f9",
+                  borderRadius: "10px",
+                  width: 40,
+                  height: 40,
+                  "&:hover": {
+                    backgroundColor: "#e2e8f0",
+                    color: "#475569",
+                  },
+                }}
+              >
+                <MoreVertIcon />
+              </IconButton>
+            </Tooltip>
+            <Avatar
+              sx={{
+                bgcolor: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
+                width: 36,
+                height: 36,
+                border: "2px solid #e2e8f0",
+              }}
+            >
+              <PersonIcon sx={{ color: "white", fontSize: 20 }} />
             </Avatar>
           </Box>
         </Toolbar>
@@ -1146,31 +1387,42 @@ export default function FormHeader() {
         aria-labelledby="preview-modal"
         sx={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto" }}
       >
-        <Box
-          sx={{
-            width: "90%",
-            maxWidth: 900,
-            maxHeight: "90vh",
-            overflow: "auto",
-            bgcolor: "background.paper",
-            borderRadius: 2,
-            boxShadow: 24,
-            p: 4,
-            mt: 4,
-            mb: 4,
-          }}
-        >
-          {renderPreview()}
-          <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}>
-            <Button
-              variant="contained"
-              onClick={() => setPreviewOpen(false)}
-              sx={{ backgroundColor: "#000000", "&:hover": { backgroundColor: "#222222" } }}
-            >
-              Fermer
-            </Button>
+        <Fade in={previewOpen}>
+          <Box
+            sx={{
+              width: "95%",
+              maxWidth: 900,
+              maxHeight: "90vh",
+              overflow: "auto",
+              bgcolor: "background.paper",
+              borderRadius: 3,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+              p: 4,
+              mt: 4,
+              mb: 4,
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            {renderPreview()}
+            <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+              <Button
+                variant="contained"
+                onClick={() => setPreviewOpen(false)}
+                sx={{
+                  background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
+                  borderRadius: "12px",
+                  px: 4,
+                  py: 1.5,
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #6a991f 0%, #4a643c 100%)",
+                  },
+                }}
+              >
+                Fermer
+              </Button>
+            </Box>
           </Box>
-        </Box>
+        </Fade>
       </Modal>
       <Box sx={{ px: 2, py: 12, maxWidth: 900, mx: "auto" }}>
         <QuestionPage title={title} onTitleChange={setTitle} parentLoading={loading} />
@@ -1181,13 +1433,19 @@ export default function FormHeader() {
         onClose={() => setNotification({ ...notification, open: false })}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <Alert
-          onClose={() => setNotification({ ...notification, open: false })}
-          severity={notification.severity}
-          sx={{ width: "100%" }}
-        >
-          {notification.message}
-        </Alert>
+        <Slide direction="up" in={notification.open}>
+          <Alert
+            onClose={() => setNotification({ ...notification, open: false })}
+            severity={notification.severity}
+            sx={{
+              width: "100%",
+              borderRadius: 2,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            }}
+          >
+            {notification.message}
+          </Alert>
+        </Slide>
       </Snackbar>
     </>
   );
