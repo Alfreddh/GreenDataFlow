@@ -5,11 +5,35 @@ import { useNavigate, useParams } from "react-router-dom";
 
 export default function VerifyAccount() {
   const [verificationCode, setVerificationCode] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const { token } = useParams();
+
+  // Récupérer l'email depuis localStorage ou les paramètres d'URL
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("registration_email");
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailParam = urlParams.get("email");
+
+    console.log("=== RÉCUPÉRATION EMAIL ===");
+    console.log("Email depuis localStorage:", savedEmail);
+    console.log("Email depuis URL params:", emailParam);
+    console.log("URL complète:", window.location.href);
+
+    if (emailParam) {
+      console.log("Utilisation de l'email depuis l'URL");
+      setEmail(emailParam);
+    } else if (savedEmail) {
+      console.log("Utilisation de l'email depuis localStorage");
+      setEmail(savedEmail);
+    } else {
+      console.log("Aucun email trouvé");
+    }
+    console.log("=== FIN RÉCUPÉRATION EMAIL ===");
+  }, []);
 
   const commonTextFieldStyle = {
     mb: 1,
@@ -44,7 +68,19 @@ export default function VerifyAccount() {
   const verifyToken = async () => {
     setLoading(true);
     try {
-      const response = await authService.verifyAccount(token);
+      // Préparer les données pour l'API
+      const verificationData = {
+        token: token,
+        email: email,
+      };
+
+      console.log("=== VÉRIFICATION PAR TOKEN ===");
+      console.log("Données envoyées à l'API:", verificationData);
+      console.log("Email récupéré:", email);
+      console.log("Token récupéré:", token);
+      console.log("=== FIN VÉRIFICATION PAR TOKEN ===");
+
+      const response = await authService.verifyAccount(verificationData);
       if (response.success) {
         setSuccess(true);
         setTimeout(() => {
@@ -60,9 +96,27 @@ export default function VerifyAccount() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!email) {
+      setError("Email non trouvé. Veuillez retourner à la page d'inscription.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await authService.verifyAccount(verificationCode);
+      // Préparer les données pour l'API
+      const verificationData = {
+        code: verificationCode,
+        email: email,
+      };
+
+      console.log("=== VÉRIFICATION PAR CODE ===");
+      console.log("Données envoyées à l'API:", verificationData);
+      console.log("Email récupéré:", email);
+      console.log("Code de vérification:", verificationCode);
+      console.log("=== FIN VÉRIFICATION PAR CODE ===");
+
+      const response = await authService.verifyAccount(verificationData);
       if (response.success) {
         setSuccess(true);
         setTimeout(() => {

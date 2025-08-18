@@ -84,6 +84,8 @@ function Formulaires() {
   const [prevPageUrl, setPrevPageUrl] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [cachedPages, setCachedPages] = useState({}); // Cache par page
+
   const navigate = useNavigate();
   const [addUserModal, setAddUserModal] = useState({ open: false, formId: null });
   const [addUserEmail, setAddUserEmail] = useState("");
@@ -96,38 +98,137 @@ function Formulaires() {
     severity: "success",
   });
 
-  const fetchForms = async (url = null) => {
-    setLoading(true);
+  // Cache global avec localStorage pour persister entre les navigations
+  const CACHE_KEY_FORMS = "formulaires_forms_cache";
+  const CACHE_KEY_PAGINATION = "formulaires_pagination_cache";
+  const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
+  // Fonction pour vérifier si le cache est valide
+  const isCacheValid = (cacheData) => {
+    if (!cacheData) return false;
+    const now = Date.now();
+    return cacheData.timestamp && now - cacheData.timestamp < CACHE_EXPIRY;
+  };
+
+  // Fonction pour sauvegarder en cache
+  const saveToCache = (key, data) => {
     try {
-      let res;
-      if (url) {
-        res = await formService.getAllForms(url);
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(key, JSON.stringify(cacheData));
+    } catch (e) {
+      console.error("Erreur sauvegarde cache:", e);
+    }
+  };
+
+  // Fonction pour récupérer du cache
+  const getFromCache = (key) => {
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      if (isCacheValid(cacheData)) {
+        return cacheData.data;
       } else {
-        res = await formService.getAllForms();
+        // Cache expiré, le supprimer
+        localStorage.removeItem(key);
+        return null;
+      }
+    } catch (e) {
+      console.error("Erreur lecture cache:", e);
+      return null;
+    }
+  };
+
+  const fetchForms = async (page = 1, forceRefresh = false) => {
+    // Vérifier si c'est un rechargement de page (F5)
+    const isPageReload =
+      performance.navigation.type === 1 ||
+      (window.performance &&
+        window.performance.getEntriesByType("navigation")[0]?.type === "reload");
+
+    // Si c'est un rechargement, ignorer le cache et forcer le rechargement
+    if (isPageReload) {
+      console.log("Rechargement de page détecté - Forcer le rechargement des formulaires");
+      localStorage.removeItem(CACHE_KEY_FORMS);
+      localStorage.removeItem(CACHE_KEY_PAGINATION);
+      setCachedPages({});
+    } else {
+      // Vérifier le cache localStorage pour la navigation normale
+      const cachedForms = getFromCache(CACHE_KEY_FORMS);
+      if (cachedForms && !forceRefresh && page === 1) {
+        console.log("Utilisation du cache localStorage pour les formulaires (page 1)");
+        setForms(cachedForms);
+        setLoading(false);
+        return;
       }
 
-      // Debug: afficher la structure de la réponse
-      console.log("API Response:", res);
+      // Vérifier le cache de pagination dans localStorage
+      const cachedPagination = getFromCache(CACHE_KEY_PAGINATION);
+      if (cachedPagination && !forceRefresh && cachedPagination[page]) {
+        console.log(`Utilisation du cache localStorage pour la page ${page}`);
+        setForms(cachedPagination[page].data);
+        setNextPageUrl(cachedPagination[page].next);
+        setPrevPageUrl(cachedPagination[page].previous);
+        setTotalPages(cachedPagination[page].totalPages);
+        setCurrentPage(page);
+        setCachedPages(cachedPagination); // Restaurer le cache en mémoire
+        return;
+      }
+    }
 
-      // La structure correcte dépend de l'API
-      // Si res.results existe, utiliser res.results.data
-      // Sinon, utiliser res.data directement
+    // Vérifier le cache en mémoire pour cette page spécifique
+    if (!forceRefresh && !isPageReload && cachedPages[page]) {
+      console.log(`Utilisation du cache en mémoire pour la page ${page}`);
+      setForms(cachedPages[page].data);
+      setNextPageUrl(cachedPages[page].next);
+      setPrevPageUrl(cachedPages[page].previous);
+      setTotalPages(cachedPages[page].totalPages);
+      setCurrentPage(page);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Construire l'URL avec le numéro de page
+      const url = page > 1 ? `/collecte/forms/all?page=${page}` : null;
+      const res = await formService.getAllForms(url);
+
+      console.log(`API Response pour page ${page}:`, res);
+
       const formsData = res?.results?.data || res?.data || [];
       setForms(formsData);
 
       setNextPageUrl(res.next);
       setPrevPageUrl(res.previous);
       setTotalPages(res.total_pages || 1);
-      if (res.next) {
-        const match = res.next.match(/page=(\d+)/);
-        setCurrentPage(match ? parseInt(match[1], 10) - 1 : 1);
-      } else if (res.previous) {
-        const match = res.previous.match(/page=(\d+)/);
-        setCurrentPage(match ? parseInt(match[1], 10) + 1 : totalPages);
-      } else {
-        setCurrentPage(1);
-      }
+      setCurrentPage(page);
+
+      // Mettre en cache cette page
+      const newCachedPages = {
+        ...cachedPages,
+        [page]: {
+          data: formsData,
+          next: res.next,
+          previous: res.previous,
+          totalPages: res.total_pages || 1,
+        },
+      };
+      setCachedPages(newCachedPages);
+
       setIsLoaded(true);
+
+      // Sauvegarder en cache localStorage seulement si ce n'est pas un rechargement
+      if (!isPageReload) {
+        if (page === 1) {
+          saveToCache(CACHE_KEY_FORMS, formsData);
+        }
+        // Sauvegarder le cache de pagination complet
+        saveToCache(CACHE_KEY_PAGINATION, newCachedPages);
+      }
     } catch (e) {
       console.error("Erreur fetchForms:", e);
       setForms([]);
@@ -140,7 +241,7 @@ function Formulaires() {
   };
   useEffect(() => {
     if (!isLoaded) {
-      fetchForms();
+      fetchForms(1);
     }
   }, [isLoaded]);
 
@@ -191,14 +292,45 @@ function Formulaires() {
     const status = getFormStatus(f);
     return {
       title: (
-        <MDTypography
-          variant="button"
-          fontWeight="medium"
-          sx={{ cursor: "pointer", textDecoration: "underline" }}
+        <Box
           onClick={() => navigate(`/formulaires/${f.id}/reponses`)}
+          sx={{
+            cursor: "pointer",
+            p: 1.5,
+            borderRadius: 2,
+            background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+            border: "2px solid transparent",
+            transition: "all 0.3s ease",
+            "&:hover": {
+              background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+              borderColor: "#77af0a",
+              transform: "translateY(-2px)",
+              boxShadow: "0 8px 25px rgba(119, 175, 10, 0.15)",
+            },
+            "&:active": {
+              transform: "translateY(0px)",
+            },
+            display: "flex",
+            alignItems: "center",
+          }}
         >
-          {f.title}
-        </MDTypography>
+          <MDTypography
+            variant="button"
+            fontWeight="600"
+            sx={{
+              color: "#1e293b",
+              fontSize: "0.875rem",
+              letterSpacing: "0.025em",
+              maxWidth: "200px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={f.title}
+          >
+            {f.title.length > 20 ? `${f.title.substring(0, 20)}...` : f.title}
+          </MDTypography>
+        </Box>
       ),
       group: (
         <MDTypography variant="caption" color="text">
@@ -278,6 +410,16 @@ function Formulaires() {
   return (
     <DashboardLayout>
       <DashboardNavbar />
+      {/* Styles CSS globaux pour les animations */}
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
       <MDBox pt={6} pb={3}>
         <Grid container spacing={6}>
           <Grid item xs={12}>
@@ -301,9 +443,36 @@ function Formulaires() {
               </MDBox>
               <MDBox pt={3}>
                 {loading ? (
-                  <Box display="flex" justifyContent="center" alignItems="center" py={5}>
-                    <CircularProgress />
-                  </Box>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 4,
+                      textAlign: "center",
+                      background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+                      borderRadius: 3,
+                      border: "2px dashed #ccc",
+                      animation: "pulse 2s infinite",
+                      mx: 2,
+                      my: 2,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 2,
+                      }}
+                    >
+                      <CircularProgress size={40} sx={{ color: "#77af0a" }} />
+                      <MDTypography variant="h6" color="text.secondary">
+                        Chargement des formulaires...
+                      </MDTypography>
+                      <MDTypography variant="body2" color="text.secondary">
+                        Veuillez patienter pendant que nous récupérons vos données
+                      </MDTypography>
+                    </Box>
+                  </Paper>
                 ) : (
                   <>
                     <DataTable
@@ -313,24 +482,178 @@ function Formulaires() {
                       showTotalEntries={false}
                       noEndBorder
                     />
-                    {/* Pagination */}
-                    <Box display="flex" justifyContent="center" alignItems="center" mt={2} gap={2}>
+                    {/* Pagination Moderne */}
+                    <Box
+                      display="flex"
+                      justifyContent="center"
+                      alignItems="center"
+                      mt={3}
+                      mb={2}
+                      sx={{
+                        background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+                        borderRadius: 3,
+                        p: 2,
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                        border: "1px solid #e0e7ef",
+                      }}
+                    >
+                      {/* Bouton Précédent */}
                       <Button
                         variant="outlined"
-                        disabled={!prevPageUrl}
-                        onClick={() => fetchForms(prevPageUrl)}
+                        disabled={currentPage === 1}
+                        onClick={() => fetchForms(currentPage - 1)}
+                        sx={{
+                          borderRadius: 2,
+                          px: 3,
+                          py: 1,
+                          borderColor: currentPage === 1 ? "#ccc" : "#77af0a",
+                          color: currentPage === 1 ? "#ccc" : "#77af0a",
+                          "&:hover": {
+                            borderColor: currentPage === 1 ? "#ccc" : "#5a8a08",
+                            backgroundColor:
+                              currentPage === 1 ? "transparent" : "rgba(119, 175, 10, 0.04)",
+                          },
+                          mr: 2,
+                        }}
                       >
-                        Précédent
+                        ← Précédent
                       </Button>
-                      <Typography>
-                        Page {currentPage} / {totalPages}
-                      </Typography>
+
+                      {/* Pages numérotées */}
+                      <Box display="flex" gap={1} mx={2}>
+                        {(() => {
+                          const pages = [];
+                          const maxVisiblePages = 5;
+                          let startPage = Math.max(
+                            1,
+                            currentPage - Math.floor(maxVisiblePages / 2)
+                          );
+                          let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+                          if (endPage - startPage + 1 < maxVisiblePages) {
+                            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                          }
+
+                          // Première page
+                          if (startPage > 1) {
+                            pages.push(
+                              <Button
+                                key={1}
+                                variant="outlined"
+                                onClick={() => fetchForms(1)}
+                                sx={{
+                                  minWidth: 40,
+                                  height: 40,
+                                  borderRadius: "50%",
+                                  borderColor: "#e0e7ef",
+                                  color: "#666",
+                                  "&:hover": {
+                                    borderColor: "#77af0a",
+                                    backgroundColor: "rgba(119, 175, 10, 0.04)",
+                                  },
+                                }}
+                              >
+                                1
+                              </Button>
+                            );
+                            if (startPage > 2) {
+                              pages.push(
+                                <Typography
+                                  key="dots1"
+                                  sx={{ px: 1, color: "#666", alignSelf: "center" }}
+                                >
+                                  ...
+                                </Typography>
+                              );
+                            }
+                          }
+
+                          // Pages visibles
+                          for (let i = startPage; i <= endPage; i++) {
+                            pages.push(
+                              <Button
+                                key={i}
+                                variant={i === currentPage ? "contained" : "outlined"}
+                                onClick={() => fetchForms(i)}
+                                sx={{
+                                  minWidth: 40,
+                                  height: 40,
+                                  borderRadius: "50%",
+                                  backgroundColor: i === currentPage ? "#77af0a" : "transparent",
+                                  borderColor: i === currentPage ? "#77af0a" : "#e0e7ef",
+                                  color: i === currentPage ? "#fff" : "#666",
+                                  "&:hover": {
+                                    backgroundColor:
+                                      i === currentPage ? "#5a8a08" : "rgba(119, 175, 10, 0.04)",
+                                    borderColor: "#77af0a",
+                                  },
+                                }}
+                              >
+                                {i}
+                              </Button>
+                            );
+                          }
+
+                          // Dernière page
+                          if (endPage < totalPages) {
+                            if (endPage < totalPages - 1) {
+                              pages.push(
+                                <Typography
+                                  key="dots2"
+                                  sx={{ px: 1, color: "#666", alignSelf: "center" }}
+                                >
+                                  ...
+                                </Typography>
+                              );
+                            }
+                            pages.push(
+                              <Button
+                                key={totalPages}
+                                variant="outlined"
+                                onClick={() => fetchForms(totalPages)}
+                                sx={{
+                                  minWidth: 40,
+                                  height: 40,
+                                  borderRadius: "50%",
+                                  borderColor: "#e0e7ef",
+                                  color: "#666",
+                                  "&:hover": {
+                                    borderColor: "#77af0a",
+                                    backgroundColor: "rgba(119, 175, 10, 0.04)",
+                                  },
+                                }}
+                              >
+                                {totalPages}
+                              </Button>
+                            );
+                          }
+
+                          return pages;
+                        })()}
+                      </Box>
+
+                      {/* Bouton Suivant */}
                       <Button
                         variant="outlined"
-                        disabled={!nextPageUrl}
-                        onClick={() => fetchForms(nextPageUrl)}
+                        disabled={currentPage === totalPages}
+                        onClick={() => fetchForms(currentPage + 1)}
+                        sx={{
+                          borderRadius: 2,
+                          px: 3,
+                          py: 1,
+                          borderColor: currentPage === totalPages ? "#ccc" : "#77af0a",
+                          color: currentPage === totalPages ? "#ccc" : "#77af0a",
+                          "&:hover": {
+                            borderColor: currentPage === totalPages ? "#ccc" : "#5a8a08",
+                            backgroundColor:
+                              currentPage === totalPages
+                                ? "transparent"
+                                : "rgba(119, 175, 10, 0.04)",
+                          },
+                          ml: 2,
+                        }}
                       >
-                        Suivant
+                        Suivant →
                       </Button>
                     </Box>
                   </>

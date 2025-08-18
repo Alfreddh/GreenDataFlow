@@ -27,6 +27,7 @@ import {
   Tooltip,
   Box,
   Typography,
+  Paper,
 } from "@mui/material";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import PublicIcon from "@mui/icons-material/Public";
@@ -49,7 +50,6 @@ import { useNavigate } from "react-router-dom";
 function Archives() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [modal, setModal] = useState({
     unarchive: false,
   });
@@ -57,22 +57,104 @@ function Archives() {
   const [actionLoading, setActionLoading] = useState(false);
   const navigate = useNavigate();
 
+  // Cache global avec localStorage pour persister entre les navigations
+  const CACHE_KEY_FORMS = "archives_forms_cache";
+  const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
+  // Fonction pour vérifier si le cache est valide
+  const isCacheValid = (cacheData) => {
+    if (!cacheData) return false;
+    const now = Date.now();
+    return cacheData.timestamp && now - cacheData.timestamp < CACHE_EXPIRY;
+  };
+
+  // Fonction pour sauvegarder en cache
+  const saveToCache = (key, data) => {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(key, JSON.stringify(cacheData));
+    } catch (e) {
+      console.error("Erreur sauvegarde cache:", e);
+    }
+  };
+
+  // Fonction pour récupérer du cache
+  const getFromCache = (key) => {
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      if (isCacheValid(cacheData)) {
+        return cacheData.data;
+      } else {
+        // Cache expiré, le supprimer
+        localStorage.removeItem(key);
+        return null;
+      }
+    } catch (e) {
+      console.error("Erreur lecture cache:", e);
+      return null;
+    }
+  };
+
   const fetchForms = async () => {
+    // Vérifier si c'est un rechargement de page (F5)
+    const isPageReload =
+      performance.navigation.type === 1 ||
+      (window.performance &&
+        window.performance.getEntriesByType("navigation")[0]?.type === "reload");
+
+    // Si c'est un rechargement, ignorer le cache et forcer le rechargement
+    if (isPageReload) {
+      console.log("Rechargement de page détecté - Forcer le rechargement des formulaires archivés");
+      localStorage.removeItem(CACHE_KEY_FORMS);
+    } else {
+      // Vérifier le cache localStorage pour la navigation normale
+      const cachedForms = getFromCache(CACHE_KEY_FORMS);
+      if (cachedForms) {
+        console.log("Utilisation du cache localStorage pour les formulaires archivés");
+        setForms(cachedForms);
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      const data = await formService.getAllForms();
-      setForms((data || []).filter((f) => f.is_archive));
-      setIsLoaded(true);
+      let allForms = [];
+      let nextUrl = null;
+
+      // Récupérer tous les formulaires avec pagination
+      do {
+        const res = await formService.getAllForms(nextUrl);
+        const formsData = res?.results?.data || res?.data || [];
+        allForms = [...allForms, ...formsData];
+        nextUrl = res?.next || null;
+      } while (nextUrl);
+
+      // Filtrer seulement les formulaires archivés
+      const archivedForms = allForms.filter((f) => f.is_archive);
+      setForms(archivedForms);
+
+      // Sauvegarder en cache localStorage seulement si ce n'est pas un rechargement
+      if (!isPageReload) {
+        saveToCache(CACHE_KEY_FORMS, archivedForms);
+      }
     } catch (e) {
+      console.error("Erreur lors du chargement des formulaires archivés:", e);
       setForms([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
   useEffect(() => {
-    if (!isLoaded) {
-      fetchForms();
-    }
-  }, [isLoaded]);
+    fetchForms();
+  }, []);
 
   // Ouvrir/fermer modals
   const openModal = (type, form = null) => {
@@ -90,7 +172,8 @@ function Archives() {
     setActionLoading(true);
     try {
       await formService.updateFormStatus(selectedForm.id, { is_archive: false });
-      setIsLoaded(false);
+      // Invalidate cache after successful unarchive
+      localStorage.removeItem(CACHE_KEY_FORMS);
       closeModal("unarchive");
     } catch (e) {}
     setActionLoading(false);
@@ -164,6 +247,16 @@ function Archives() {
   return (
     <DashboardLayout>
       <DashboardNavbar />
+      {/* Styles CSS globaux pour les animations */}
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
       <MDBox pt={6} pb={3}>
         <Grid container spacing={6}>
           <Grid item xs={12}>
@@ -187,9 +280,36 @@ function Archives() {
               </MDBox>
               <MDBox pt={3}>
                 {loading ? (
-                  <Box display="flex" justifyContent="center" alignItems="center" py={5}>
-                    <CircularProgress />
-                  </Box>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 4,
+                      textAlign: "center",
+                      background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+                      borderRadius: 3,
+                      border: "2px dashed #ccc",
+                      animation: "pulse 2s infinite",
+                      mx: 2,
+                      my: 2,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 2,
+                      }}
+                    >
+                      <CircularProgress size={40} sx={{ color: "#77af0a" }} />
+                      <MDTypography variant="h6" color="text.secondary">
+                        Chargement des formulaires archivés...
+                      </MDTypography>
+                      <MDTypography variant="body2" color="text.secondary">
+                        Veuillez patienter pendant que nous récupérons vos données
+                      </MDTypography>
+                    </Box>
+                  </Paper>
                 ) : (
                   <DataTable
                     table={{ columns, rows }}

@@ -22,22 +22,24 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   IconButton,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
   CircularProgress,
   Tooltip,
   Box,
   Typography,
+  Paper,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Icon,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
-import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
 
 // Material Dashboard 2 React components
 import MDBox from "components/MDBox";
@@ -49,13 +51,12 @@ import DashboardNavbar from "examples/Navbars/DashboardNavbar";
 import Footer from "examples/Footer";
 import DataTable from "examples/Tables/DataTable";
 
-import { groupService, formService } from "../../services/api";
+import { formService, groupService } from "../../services/api";
 
 function Groupes() {
   const [groups, setGroups] = useState([]);
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [modal, setModal] = useState({
     create: false,
     edit: false,
@@ -63,43 +64,150 @@ function Groupes() {
     addForm: false,
   });
   const [selectedGroup, setSelectedGroup] = useState(null);
-  const [groupName, setGroupName] = useState("");
-  const [formToAdd, setFormToAdd] = useState("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [selectedForm, setSelectedForm] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-  const [viewGroupForms, setViewGroupForms] = useState({ open: false, group: null });
+  const [groupName, setGroupName] = useState("");
+  const [viewGroupForms, setViewGroupForms] = useState({ open: false, group: null, forms: [] });
   const [removeFormDialog, setRemoveFormDialog] = useState({
     open: false,
     form: null,
     group: null,
   });
 
-  // Charger groupes et formulaires
+  // Cache global avec localStorage pour persister entre les navigations
+  const CACHE_KEY_GROUPS = "groupes_groups_cache";
+  const CACHE_KEY_FORMS = "groupes_forms_cache";
+  const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+
+  // Fonction pour vérifier si le cache est valide
+  const isCacheValid = (cacheData) => {
+    if (!cacheData) return false;
+    const now = Date.now();
+    return cacheData.timestamp && now - cacheData.timestamp < CACHE_EXPIRY;
+  };
+
+  // Fonction pour sauvegarder en cache
+  const saveToCache = (key, data) => {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(key, JSON.stringify(cacheData));
+    } catch (e) {
+      console.error("Erreur sauvegarde cache:", e);
+    }
+  };
+
+  // Fonction pour récupérer du cache
+  const getFromCache = (key) => {
+    try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+
+      const cacheData = JSON.parse(cached);
+      if (isCacheValid(cacheData)) {
+        return cacheData.data;
+      } else {
+        // Cache expiré, le supprimer
+        localStorage.removeItem(key);
+        return null;
+      }
+    } catch (e) {
+      console.error("Erreur lecture cache:", e);
+      return null;
+    }
+  };
+
   const fetchGroups = async () => {
-    setLoading(true);
+    // Vérifier si c'est un rechargement de page (F5)
+    const isPageReload =
+      performance.navigation.type === 1 ||
+      (window.performance &&
+        window.performance.getEntriesByType("navigation")[0]?.type === "reload");
+
+    // Si c'est un rechargement, ignorer le cache et forcer le rechargement
+    if (isPageReload) {
+      console.log("Rechargement de page détecté - Forcer le rechargement des groupes");
+      localStorage.removeItem(CACHE_KEY_GROUPS);
+    } else {
+      // Vérifier le cache localStorage pour la navigation normale
+      const cachedGroups = getFromCache(CACHE_KEY_GROUPS);
+      if (cachedGroups) {
+        console.log("Utilisation du cache localStorage pour les groupes");
+        setGroups(cachedGroups);
+        return;
+      }
+    }
+
     try {
       const data = await groupService.getAllGroups();
-      setGroups(data || []);
-      setIsLoaded(true);
+      // Le service retourne directement le tableau de groupes
+      const groupsData = Array.isArray(data) ? data : [];
+      console.log("Groupes récupérés:", groupsData);
+      setGroups(groupsData);
+      // Sauvegarder en cache localStorage seulement si ce n'est pas un rechargement
+      if (!isPageReload) {
+        saveToCache(CACHE_KEY_GROUPS, groupsData);
+      }
     } catch (e) {
+      console.error("Erreur fetchGroups:", e);
       setGroups([]);
     }
-    setLoading(false);
   };
+
   const fetchForms = async () => {
+    // Vérifier si c'est un rechargement de page (F5)
+    const isPageReload =
+      performance.navigation.type === 1 ||
+      (window.performance &&
+        window.performance.getEntriesByType("navigation")[0]?.type === "reload");
+
+    // Si c'est un rechargement, ignorer le cache et forcer le rechargement
+    if (isPageReload) {
+      console.log("Rechargement de page détecté - Forcer le rechargement des formulaires");
+      localStorage.removeItem(CACHE_KEY_FORMS);
+    } else {
+      // Vérifier le cache localStorage pour la navigation normale
+      const cachedForms = getFromCache(CACHE_KEY_FORMS);
+      if (cachedForms) {
+        console.log("Utilisation du cache localStorage pour les formulaires");
+        setForms(cachedForms);
+        return;
+      }
+    }
+
     try {
-      const data = await formService.getAllForms();
-      setForms(data?.results?.data || []);
+      let allForms = [];
+      let nextUrl = null;
+
+      // Récupérer tous les formulaires avec pagination
+      do {
+        const res = await formService.getAllForms(nextUrl);
+        const formsData = res?.results?.data || res?.data || [];
+        allForms = [...allForms, ...formsData];
+        nextUrl = res?.next || null;
+      } while (nextUrl);
+
+      setForms(allForms);
+      // Sauvegarder en cache localStorage seulement si ce n'est pas un rechargement
+      if (!isPageReload) {
+        saveToCache(CACHE_KEY_FORMS, allForms);
+      }
     } catch (e) {
+      console.error("Erreur fetchForms:", e);
       setForms([]);
     }
   };
+
   useEffect(() => {
-    if (!isLoaded) {
-      fetchGroups();
-      fetchForms();
-    }
-  }, [isLoaded]);
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchGroups(), fetchForms()]);
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
   // Ouvrir/fermer modals
   const openModal = (type, group = null) => {
@@ -107,13 +215,13 @@ function Groupes() {
     setSelectedGroup(group);
     if (type === "edit" && group) setGroupName(group.name);
     if (type === "create") setGroupName("");
-    if (type === "addForm") setFormToAdd("");
+    if (type === "addForm") setSelectedForm("");
   };
   const closeModal = (type) => {
     setModal((m) => ({ ...m, [type]: false }));
     setSelectedGroup(null);
     setGroupName("");
-    setFormToAdd("");
+    setSelectedForm("");
   };
 
   // Créer un groupe
@@ -122,9 +230,12 @@ function Groupes() {
     setActionLoading(true);
     try {
       await groupService.createGroup(groupName.trim());
-      setIsLoaded(false);
+      setGroups([]); // Forcer le rechargement pour mettre à jour la liste
       closeModal("create");
-    } catch (e) {}
+    } catch (e) {
+      console.error("Erreur lors de la création du groupe:", e);
+      // Ici vous pourriez ajouter une notification d'erreur
+    }
     setActionLoading(false);
   };
 
@@ -134,33 +245,42 @@ function Groupes() {
     setActionLoading(true);
     try {
       await groupService.updateGroup(selectedGroup.id, groupName.trim());
-      setIsLoaded(false);
+      setGroups([]); // Forcer le rechargement pour mettre à jour la liste
       closeModal("edit");
-    } catch (e) {}
+    } catch (e) {
+      console.error("Erreur lors de la modification du groupe:", e);
+      // Ici vous pourriez ajouter une notification d'erreur
+    }
     setActionLoading(false);
   };
 
   // Supprimer un groupe
   const handleDeleteGroup = async () => {
     if (!selectedGroup) return;
-    setDeleteLoading(true);
+    setActionLoading(true);
     try {
       await groupService.deleteGroup(selectedGroup.id);
-      setIsLoaded(false);
+      setGroups([]); // Forcer le rechargement pour mettre à jour la liste
       closeModal("delete");
-    } catch (e) {}
-    setDeleteLoading(false);
+    } catch (e) {
+      console.error("Erreur lors de la suppression du groupe:", e);
+      // Ici vous pourriez ajouter une notification d'erreur
+    }
+    setActionLoading(false);
   };
 
   // Ajouter un formulaire à un groupe
   const handleAddFormToGroup = async () => {
-    if (!selectedGroup || !formToAdd) return;
+    if (!selectedGroup || !selectedForm) return;
     setActionLoading(true);
     try {
-      await groupService.addFormToGroup(selectedGroup.id, formToAdd);
-      setIsLoaded(false);
+      await groupService.addFormToGroup(selectedGroup.id, selectedForm);
+      setGroups([]); // Forcer le rechargement pour mettre à jour la liste
       closeModal("addForm");
-    } catch (e) {}
+    } catch (e) {
+      console.error("Erreur lors de l'ajout du formulaire au groupe:", e);
+      // Ici vous pourriez ajouter une notification d'erreur
+    }
     setActionLoading(false);
   };
 
@@ -215,8 +335,17 @@ function Groupes() {
     ),
   }));
 
-  const handleViewGroupForms = (group) => setViewGroupForms({ open: true, group });
-  const handleCloseViewGroupForms = () => setViewGroupForms({ open: false, group: null });
+  const handleViewGroupForms = async (group) => {
+    try {
+      const groupForms = await groupService.getGroupForms(group.id);
+      setViewGroupForms({ open: true, group, forms: groupForms });
+    } catch (error) {
+      console.error("Erreur lors de la récupération des formulaires du groupe:", error);
+      setViewGroupForms({ open: true, group, forms: [] });
+    }
+  };
+  const handleCloseViewGroupForms = () =>
+    setViewGroupForms({ open: false, group: null, forms: [] });
 
   const handleConfirmRemoveForm = (form, group) => setRemoveFormDialog({ open: true, form, group });
   const handleCloseRemoveFormDialog = () =>
@@ -226,16 +355,29 @@ function Groupes() {
     setActionLoading(true);
     try {
       await groupService.removeFormFromGroup(removeFormDialog.group.id, removeFormDialog.form.id);
-      setIsLoaded(false);
+      setGroups([]); // Forcer le rechargement pour mettre à jour la liste
       handleCloseRemoveFormDialog();
       handleCloseViewGroupForms();
-    } catch (e) {}
+    } catch (e) {
+      console.error("Erreur lors de la suppression du formulaire du groupe:", e);
+      // Ici vous pourriez ajouter une notification d'erreur
+    }
     setActionLoading(false);
   };
 
   return (
     <DashboardLayout>
       <DashboardNavbar />
+      {/* Styles CSS globaux pour les animations */}
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+          }
+        `}
+      </style>
       <MDBox pt={6} pb={3}>
         <Grid container spacing={6}>
           <Grid item xs={12}>
@@ -268,9 +410,36 @@ function Groupes() {
               </MDBox>
               <MDBox pt={3}>
                 {loading ? (
-                  <Box display="flex" justifyContent="center" alignItems="center" py={5}>
-                    <CircularProgress />
-                  </Box>
+                  <Paper
+                    elevation={0}
+                    sx={{
+                      p: 4,
+                      textAlign: "center",
+                      background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+                      borderRadius: 3,
+                      border: "2px dashed #ccc",
+                      animation: "pulse 2s infinite",
+                      mx: 2,
+                      my: 2,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 2,
+                      }}
+                    >
+                      <CircularProgress size={40} sx={{ color: "#77af0a" }} />
+                      <MDTypography variant="h6" color="text.secondary">
+                        Chargement des groupes...
+                      </MDTypography>
+                      <MDTypography variant="body2" color="text.secondary">
+                        Veuillez patienter pendant que nous récupérons vos données
+                      </MDTypography>
+                    </Box>
+                  </Paper>
                 ) : (
                   <DataTable
                     table={{ columns, rows }}
@@ -288,116 +457,471 @@ function Groupes() {
       <Footer />
 
       {/* Modal Créer */}
-      <Dialog open={modal.create} onClose={() => closeModal("create")} maxWidth="xs" fullWidth>
-        <DialogTitle>Créer un groupe</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={modal.create}
+        onClose={() => closeModal("create")}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            boxShadow: 8,
+            background: "#f8fafc",
+            p: 0,
+            overflow: "visible",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: 26,
+            textAlign: "left",
+            letterSpacing: 0.5,
+            pt: 4,
+            pb: 1,
+            color: "#222",
+            px: 4,
+          }}
+        >
+          Créer un nouveau groupe
+        </DialogTitle>
+        <Typography variant="body2" sx={{ textAlign: "left", color: "#666", mb: 2, px: 4 }}>
+          Donnez un nom à votre nouveau groupe pour organiser vos formulaires.
+        </Typography>
+        <DialogContent sx={{ pb: 4, pt: 0, mt: 3 }}>
           <TextField
-            autoFocus
-            margin="dense"
             label="Nom du groupe"
-            type="text"
-            fullWidth
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
+            fullWidth
+            sx={{
+              background: "#fff",
+              borderRadius: 2,
+              "& .MuiOutlinedInput-root": {
+                "&:hover fieldset": {
+                  borderColor: "#77af0a",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#77af0a",
+                },
+              },
+            }}
+            placeholder="Ex: Groupe Marketing, Équipe Ventes..."
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => closeModal("create")} disabled={actionLoading}>
+        <DialogActions sx={{ px: 4, pb: 4, gap: 1 }}>
+          <Button
+            onClick={() => closeModal("create")}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              borderColor: "#d32f2f",
+              color: "#d32f2f",
+              "&:hover": {
+                borderColor: "#b71c1c",
+                backgroundColor: "rgba(211, 47, 47, 0.04)",
+              },
+            }}
+          >
             Annuler
           </Button>
           <Button
-            onClick={handleCreateGroup}
             variant="contained"
-            color="success"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              background: "#77af0a",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#5a8a08",
+              },
+            }}
             disabled={actionLoading || !groupName.trim()}
+            onClick={handleCreateGroup}
           >
-            {actionLoading ? <CircularProgress size={20} /> : "Créer"}
+            {actionLoading ? <CircularProgress size={20} color="inherit" /> : "Créer le groupe"}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Modal Modifier */}
-      <Dialog open={modal.edit} onClose={() => closeModal("edit")} maxWidth="xs" fullWidth>
-        <DialogTitle>Modifier le groupe</DialogTitle>
-        <DialogContent>
+      <Dialog
+        open={modal.edit}
+        onClose={() => closeModal("edit")}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            boxShadow: 8,
+            background: "#f8fafc",
+            p: 0,
+            overflow: "visible",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: 26,
+            textAlign: "left",
+            letterSpacing: 0.5,
+            pt: 4,
+            pb: 1,
+            color: "#222",
+            px: 4,
+          }}
+        >
+          Modifier le groupe
+        </DialogTitle>
+        <Typography variant="body2" sx={{ textAlign: "left", color: "#666", mb: 2, px: 4 }}>
+          Modifiez le nom de votre groupe pour mieux l&apos;organiser.
+        </Typography>
+        <DialogContent sx={{ pb: 4, pt: 0, mt: 3 }}>
           <TextField
-            autoFocus
-            margin="dense"
             label="Nom du groupe"
-            type="text"
-            fullWidth
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
+            fullWidth
+            sx={{
+              background: "#fff",
+              borderRadius: 2,
+              "& .MuiOutlinedInput-root": {
+                "&:hover fieldset": {
+                  borderColor: "#77af0a",
+                },
+                "&.Mui-focused fieldset": {
+                  borderColor: "#77af0a",
+                },
+              },
+            }}
+            placeholder="Nouveau nom du groupe..."
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => closeModal("edit")} disabled={actionLoading}>
+        <DialogActions sx={{ px: 4, pb: 4, gap: 1 }}>
+          <Button
+            onClick={() => closeModal("edit")}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              borderColor: "#d32f2f",
+              color: "#d32f2f",
+              "&:hover": {
+                borderColor: "#b71c1c",
+                backgroundColor: "rgba(211, 47, 47, 0.04)",
+              },
+            }}
+          >
             Annuler
           </Button>
           <Button
-            onClick={handleEditGroup}
             variant="contained"
-            color="info"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              background: "#77af0a",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#5a8a08",
+              },
+            }}
             disabled={actionLoading || !groupName.trim()}
+            onClick={handleEditGroup}
           >
-            {actionLoading ? <CircularProgress size={20} /> : "Enregistrer"}
+            {actionLoading ? <CircularProgress size={20} color="inherit" /> : "Enregistrer"}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Modal Supprimer */}
-      <Dialog open={modal.delete} onClose={() => closeModal("delete")} maxWidth="xs" fullWidth>
-        <DialogTitle>Supprimer le groupe</DialogTitle>
-        <DialogContent>
-          <Typography>Voulez-vous vraiment supprimer ce groupe ?</Typography>
+      <Dialog
+        open={modal.delete}
+        onClose={() => closeModal("delete")}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            boxShadow: 8,
+            background: "#f8fafc",
+            p: 0,
+            overflow: "visible",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: 26,
+            textAlign: "left",
+            letterSpacing: 0.5,
+            pt: 4,
+            pb: 1,
+            color: "#d32f2f",
+            px: 4,
+          }}
+        >
+          ⚠️ Supprimer le groupe
+        </DialogTitle>
+        <Typography variant="body2" sx={{ textAlign: "left", color: "#666", mb: 2, px: 4 }}>
+          Cette action est irréversible. Tous les formulaires associés à ce groupe seront également
+          affectés.
+        </Typography>
+        <DialogContent sx={{ pb: 4, pt: 0, mt: 3 }}>
+          <Box
+            sx={{
+              p: 3,
+              bgcolor: "rgba(211, 47, 47, 0.05)",
+              borderRadius: 2,
+              border: "1px solid rgba(211, 47, 47, 0.2)",
+            }}
+          >
+            <Typography variant="h6" color="error" fontWeight="bold" mb={1}>
+              Groupe à supprimer : {selectedGroup?.name}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Identifiant : {selectedGroup?.identifier}
+            </Typography>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => closeModal("delete")} disabled={deleteLoading}>
+        <DialogActions sx={{ px: 4, pb: 4, gap: 1 }}>
+          <Button
+            onClick={() => closeModal("delete")}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              borderColor: "#666",
+              color: "#666",
+              "&:hover": {
+                borderColor: "#333",
+                backgroundColor: "rgba(0, 0, 0, 0.04)",
+              },
+            }}
+          >
             Annuler
           </Button>
           <Button
-            onClick={handleDeleteGroup}
             variant="contained"
-            color="error"
-            disabled={deleteLoading}
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              background: "#d32f2f",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#b71c1c",
+              },
+            }}
+            disabled={actionLoading}
+            onClick={handleDeleteGroup}
           >
-            {deleteLoading ? <CircularProgress size={20} /> : "Supprimer"}
+            {actionLoading ? (
+              <CircularProgress size={20} color="inherit" />
+            ) : (
+              "Supprimer définitivement"
+            )}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Modal Ajouter Formulaire */}
-      <Dialog open={modal.addForm} onClose={() => closeModal("addForm")} maxWidth="xs" fullWidth>
-        <DialogTitle>Ajouter un formulaire au groupe</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth margin="dense">
-            <InputLabel id="select-form-label">Formulaire</InputLabel>
+      <Dialog
+        open={modal.addForm}
+        onClose={() => closeModal("addForm")}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            boxShadow: 8,
+            background: "#f8fafc",
+            p: 0,
+            overflow: "visible",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: 26,
+            textAlign: "left",
+            letterSpacing: 0.5,
+            pt: 4,
+            pb: 1,
+            color: "#222",
+            px: 4,
+          }}
+        >
+          📋 Ajouter un formulaire
+        </DialogTitle>
+        <Typography variant="body2" sx={{ textAlign: "left", color: "#666", mb: 2, px: 4 }}>
+          Sélectionnez un formulaire à ajouter au groupe &quot;{selectedGroup?.name}&quot;.
+        </Typography>
+        <DialogContent sx={{ pb: 4, pt: 0, mt: 3 }}>
+          <FormControl fullWidth>
+            <InputLabel id="select-form-label" sx={{ color: "#666" }}>
+              Choisir un formulaire
+            </InputLabel>
             <Select
               labelId="select-form-label"
-              value={formToAdd}
-              label="Formulaire"
-              onChange={(e) => setFormToAdd(e.target.value)}
-              sx={{ minHeight: 48, fontSize: 18 }}
+              value={selectedForm}
+              label="Choisir un formulaire"
+              onChange={(e) => setSelectedForm(e.target.value)}
+              sx={{
+                background: "#fff",
+                borderRadius: 2,
+                minHeight: 56,
+                fontSize: 16,
+                fontWeight: 500,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                border: "2px solid transparent",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  boxShadow: "0 6px 25px rgba(0,0,0,0.12)",
+                  transform: "translateY(-1px)",
+                },
+                "&.Mui-focused": {
+                  borderColor: "#77af0a",
+                  boxShadow: "0 8px 30px rgba(119, 175, 10, 0.15)",
+                },
+                "& .MuiSelect-icon": {
+                  color: "#77af0a",
+                  fontSize: 24,
+                },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  border: "none",
+                },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                  border: "none",
+                },
+                "& .MuiSelect-select": {
+                  color: selectedForm ? "#333" : "#999",
+                  fontWeight: selectedForm ? 600 : 400,
+                },
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    borderRadius: 3,
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+                    border: "1px solid #e0e0e0",
+                    maxHeight: 400,
+                  },
+                },
+              }}
             >
-              {forms.map((f) => (
-                <MenuItem key={f.id} value={f.id}>
-                  {f.title}
+              {forms.map((form, index) => (
+                <MenuItem
+                  key={form.id}
+                  value={form.id}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    py: 2,
+                    px: 3,
+                    fontSize: 15,
+                    fontWeight: 500,
+                    borderBottom: "1px solid #f5f5f5",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #f8f9fa 0%, #e8f5e8 100%)",
+                      transform: "translateX(4px)",
+                    },
+                    "&.Mui-selected": {
+                      background: "linear-gradient(135deg, #77af0a 0%, #8bc34a 100%)",
+                      color: "#fff",
+                      fontWeight: 600,
+                      "&:hover": {
+                        background: "linear-gradient(135deg, #6a9a09 0%, #7cb342 100%)",
+                      },
+                    },
+                    "&:last-child": {
+                      borderBottom: "none",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      fontSize: 20,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background: "rgba(119, 175, 10, 0.1)",
+                      color: "#77af0a",
+                    }}
+                  >
+                    📄
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <MDTypography
+                      variant="body1"
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: 15,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      {form.title || `Formulaire ${index + 1}`}
+                    </MDTypography>
+                    <MDTypography
+                      variant="caption"
+                      sx={{
+                        color: "rgba(255,255,255,0.8)",
+                        fontSize: 12,
+                        display: "block",
+                        mt: 0.5,
+                      }}
+                    >
+                      {form.parameters?.length || 0} questions
+                    </MDTypography>
+                  </Box>
+                  {selectedForm === form.id && (
+                    <Icon sx={{ fontSize: 20, color: "#fff" }}>check_circle</Icon>
+                  )}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => closeModal("addForm")} disabled={actionLoading}>
+        <DialogActions sx={{ px: 4, pb: 4, gap: 1 }}>
+          <Button
+            onClick={() => closeModal("addForm")}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              borderColor: "#d32f2f",
+              color: "#d32f2f",
+              "&:hover": {
+                borderColor: "#b71c1c",
+                backgroundColor: "rgba(211, 47, 47, 0.04)",
+              },
+            }}
+          >
             Annuler
           </Button>
           <Button
-            onClick={handleAddFormToGroup}
             variant="contained"
-            color="primary"
-            disabled={actionLoading || !formToAdd}
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              background: "#77af0a",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#5a8a08",
+              },
+            }}
+            disabled={actionLoading || !selectedForm}
+            onClick={handleAddFormToGroup}
           >
-            {actionLoading ? <CircularProgress size={20} /> : "Ajouter"}
+            {actionLoading ? <CircularProgress size={20} color="inherit" /> : "Ajouter au groupe"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -406,46 +930,143 @@ function Groupes() {
       <Dialog
         open={viewGroupForms.open}
         onClose={handleCloseViewGroupForms}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            boxShadow: 8,
+            background: "#f8fafc",
+            p: 0,
+            overflow: "visible",
+          },
+        }}
       >
-        <DialogTitle>Formulaires du groupe</DialogTitle>
-        <DialogContent>
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: 26,
+            textAlign: "left",
+            letterSpacing: 0.5,
+            pt: 4,
+            pb: 1,
+            color: "#222",
+            px: 4,
+          }}
+        >
+          📋 Formulaires du groupe
+        </DialogTitle>
+        <Typography variant="body2" sx={{ textAlign: "left", color: "#666", mb: 2, px: 4 }}>
+          Liste des formulaires associés au groupe &quot;{viewGroupForms.group?.name}&quot;.
+        </Typography>
+        <DialogContent sx={{ pb: 4, pt: 0, mt: 3 }}>
           {viewGroupForms.group ? (
             (() => {
-              const groupFormList = forms.filter(
-                (f) => f.group && f.group.id === viewGroupForms.group.id
-              );
+              const groupFormList = viewGroupForms.forms || [];
               return groupFormList.length > 0 ? (
-                <ul style={{ paddingLeft: 0, listStyle: "none" }}>
-                  {groupFormList.map((f) => (
-                    <li
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {groupFormList.map((f, index) => (
+                    <Paper
                       key={f.id}
-                      style={{ display: "flex", alignItems: "center", marginBottom: 8 }}
+                      sx={{
+                        p: 3,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        borderRadius: 3,
+                        border: "2px solid #e0e7ef",
+                        background: "linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          borderColor: "#77af0a",
+                          boxShadow: "0 8px 25px rgba(119, 175, 10, 0.15)",
+                          transform: "translateY(-2px)",
+                        },
+                      }}
                     >
-                      <span style={{ flex: 1 }}>
-                        {f.title || f.name || f.label || f.id || "Sans nom"}
-                      </span>
-                      <IconButton
-                        color="error"
-                        size="small"
-                        onClick={() => handleConfirmRemoveForm(f, viewGroupForms.group)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </li>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2, flex: 1 }}>
+                        <Box
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: "50%",
+                            background: "linear-gradient(135deg, #77af0a 0%, #8bc34a 100%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#fff",
+                            fontSize: 20,
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {index + 1}
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" fontWeight="bold" color="#333">
+                            {f.title || f.name || f.label || f.id || "Sans nom"}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {f.parameters?.length || 0} questions • Créé le{" "}
+                            {new Date(f.created_at).toLocaleDateString()}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Tooltip title="Retirer du groupe">
+                        <IconButton
+                          color="error"
+                          size="small"
+                          onClick={() => handleConfirmRemoveForm(f, viewGroupForms.group)}
+                          sx={{
+                            background: "rgba(211, 47, 47, 0.1)",
+                            "&:hover": {
+                              background: "rgba(211, 47, 47, 0.2)",
+                            },
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Paper>
                   ))}
-                </ul>
+                </Box>
               ) : (
-                <Typography>Aucun formulaire dans ce groupe.</Typography>
+                <Box
+                  sx={{
+                    textAlign: "center",
+                    py: 6,
+                    color: "text.secondary",
+                  }}
+                >
+                  <Icon sx={{ fontSize: 64, mb: 2, opacity: 0.5 }}>folder_open</Icon>
+                  <Typography variant="h6" color="text.secondary" mb={1}>
+                    Aucun formulaire dans ce groupe
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Ajoutez des formulaires pour commencer à organiser votre contenu.
+                  </Typography>
+                </Box>
               );
             })()
           ) : (
-            <Typography>Aucun formulaire dans ce groupe.</Typography>
+            <Typography>Aucun groupe sélectionné.</Typography>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseViewGroupForms}>Fermer</Button>
+        <DialogActions sx={{ px: 4, pb: 4 }}>
+          <Button
+            onClick={handleCloseViewGroupForms}
+            variant="contained"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              background: "#77af0a",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#5a8a08",
+              },
+            }}
+          >
+            Fermer
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -453,32 +1074,92 @@ function Groupes() {
       <Dialog
         open={removeFormDialog.open}
         onClose={handleCloseRemoveFormDialog}
-        maxWidth="xs"
+        maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            boxShadow: 8,
+            background: "#f8fafc",
+            p: 0,
+            overflow: "visible",
+          },
+        }}
       >
-        <DialogTitle>Retirer le formulaire</DialogTitle>
-        <DialogContent>
-          <Typography>Voulez-vous vraiment retirer ce formulaire du groupe ?</Typography>
-          <Typography fontWeight="bold" mt={2}>
-            {removeFormDialog.form &&
-              (removeFormDialog.form.title ||
-                removeFormDialog.form.name ||
-                removeFormDialog.form.label ||
-                removeFormDialog.form.id ||
-                "Sans nom")}
-          </Typography>
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            fontSize: 26,
+            textAlign: "left",
+            letterSpacing: 0.5,
+            pt: 4,
+            pb: 1,
+            color: "#d32f2f",
+            px: 4,
+          }}
+        >
+          🗑️ Retirer le formulaire
+        </DialogTitle>
+        <Typography variant="body2" sx={{ textAlign: "left", color: "#666", mb: 2, px: 4 }}>
+          Confirmez que vous souhaitez retirer ce formulaire du groupe.
+        </Typography>
+        <DialogContent sx={{ pb: 4, pt: 0, mt: 3 }}>
+          <Box
+            sx={{
+              p: 3,
+              bgcolor: "rgba(211, 47, 47, 0.05)",
+              borderRadius: 2,
+              border: "1px solid rgba(211, 47, 47, 0.2)",
+            }}
+          >
+            <Typography variant="h6" color="error" fontWeight="bold" mb={1}>
+              Formulaire à retirer :
+            </Typography>
+            <Typography variant="body1" fontWeight="medium" mb={1}>
+              {removeFormDialog.form &&
+                (removeFormDialog.form.title ||
+                  removeFormDialog.form.name ||
+                  removeFormDialog.form.label ||
+                  removeFormDialog.form.id ||
+                  "Sans nom")}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Du groupe : {removeFormDialog.group?.name}
+            </Typography>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseRemoveFormDialog} disabled={actionLoading}>
+        <DialogActions sx={{ px: 4, pb: 4, gap: 1 }}>
+          <Button
+            onClick={handleCloseRemoveFormDialog}
+            variant="outlined"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              borderColor: "#666",
+              color: "#666",
+              "&:hover": {
+                borderColor: "#333",
+                backgroundColor: "rgba(0, 0, 0, 0.04)",
+              },
+            }}
+          >
             Annuler
           </Button>
           <Button
-            onClick={handleRemoveFormFromGroup}
-            color="error"
             variant="contained"
+            sx={{
+              borderRadius: 2,
+              px: 4,
+              background: "#d32f2f",
+              color: "#fff",
+              "&:hover": {
+                backgroundColor: "#b71c1c",
+              },
+            }}
             disabled={actionLoading}
+            onClick={handleRemoveFormFromGroup}
           >
-            {actionLoading ? <CircularProgress size={20} /> : "Retirer"}
+            {actionLoading ? <CircularProgress size={20} color="inherit" /> : "Retirer du groupe"}
           </Button>
         </DialogActions>
       </Dialog>

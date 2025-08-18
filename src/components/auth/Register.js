@@ -37,8 +37,22 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await register(formData.email, formData.password);
-      navigate("/verify-account");
+      // Préparer les données pour l'API (exclure confirmPassword)
+      const userData = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        password: formData.password,
+      };
+
+      console.log("Données envoyées à l'API:", userData);
+      await register(userData);
+
+      // Sauvegarder l'email pour la vérification
+      localStorage.setItem("registration_email", formData.email);
+
+      // Passer l'email en paramètre d'URL aussi
+      navigate(`/verify-account?email=${encodeURIComponent(formData.email)}`);
     } catch (err) {
       setError(err.message);
     } finally {

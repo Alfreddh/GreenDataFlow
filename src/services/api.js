@@ -247,9 +247,15 @@ const convertQuestionsToParameters = (questions) => {
       }
 
       console.log(
-        `[DEBUG convert] Final parameter for ${q.label}:`,
+        `[DEBUG convert] Final parameter for ${q.label || q.libelle}:`,
         JSON.stringify(parameter, null, 2)
       );
+      console.log(`[DEBUG convert] Paramètres de validation pour ${q.label || q.libelle}:`, {
+        content_condition: q.content_condition,
+        a_value: q.a_value,
+        b_value: q.b_value,
+        max_length: q.max_length,
+      });
       return parameter;
     })
     .filter(Boolean); // Filtrer les éventuels paramètres null
@@ -371,7 +377,7 @@ export const formService = {
   // Soumettre une réponse à un formulaire
   submitFormResponse: async (formId, responseData) => {
     try {
-      const response = await api.post(`/forms/${formId}/responses`, responseData);
+      const response = await api.post(`/data/forms/responses/${formId}/add`, responseData);
       return response.data;
     } catch (error) {
       throw error;
@@ -511,6 +517,26 @@ export const groupService = {
   addFormToGroup: async (groupId, formId) => {
     try {
       const response = await api.post(`/collecte/groups/${groupId}/add-form`, { form: formId });
+      return response.data.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Retirer un formulaire d'un groupe
+  removeFormFromGroup: async (groupId, formId) => {
+    try {
+      const response = await api.post(`/collecte/groups/${groupId}/remove-form`, { form: formId });
+      return response.data.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // Récupérer les formulaires d'un groupe
+  getGroupForms: async (groupId) => {
+    try {
+      const response = await api.get(`/collecte/groups/${groupId}/forms`);
       return response.data.data;
     } catch (error) {
       throw error;

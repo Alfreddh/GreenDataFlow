@@ -13,8 +13,17 @@ import {
   Paper,
   Button,
   FormControl,
+  InputLabel,
   CircularProgress,
   Chip,
+  Tabs,
+  Tab,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  FormGroup,
+  Checkbox,
+  Divider,
 } from "@mui/material";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -139,6 +148,24 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
   const [cascadeFile, setCascadeFile] = useState(null);
   const [cascadeFileName, setCascadeFileName] = useState("");
   const [cascadeInputMode, setCascadeInputMode] = useState("text"); // "text" ou "file"
+  const [selectedRowIndex, setSelectedRowIndex] = useState(null);
+  const [rowTypeModalOpen, setRowTypeModalOpen] = useState(false);
+  const [selectedRowQuestionId, setSelectedRowQuestionId] = useState(null);
+  const [rowOptionsModalOpen, setRowOptionsModalOpen] = useState(false);
+  const [editingRowOptions, setEditingRowOptions] = useState([]);
+
+  // États pour le modal d'options supplémentaires
+  const [optionsModalOpen, setOptionsModalOpen] = useState(false);
+  const [selectedQuestionForOptions, setSelectedQuestionForOptions] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
+  const [validationCondition, setValidationCondition] = useState("");
+  const [aValue, setAValue] = useState("");
+  const [bValue, setBValue] = useState("");
+  const [maxLength, setMaxLength] = useState("");
+
+  // États pour la logique d'affichage
+  const [selectedControlQuestion, setSelectedControlQuestion] = useState("");
+  const [selectedControlChoices, setSelectedControlChoices] = useState([]);
 
   // Écouter les changements du localStorage pour synchroniser les données
   useEffect(() => {
@@ -321,6 +348,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                   rows: q.rows && Array.isArray(q.rows) ? q.rows : ["Ligne 1"],
                   columns:
                     q.columns && Array.isArray(q.columns) ? q.columns : ["Colonne 1", "Colonne 2"],
+                  rowTypes: q.rowTypes && Array.isArray(q.rowTypes) ? q.rowTypes : ["texte"],
                 }
               : {}),
           };
@@ -328,8 +356,328 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
         return q;
       })
     );
+
     setTypeModalOpen(false);
     setSelectedQuestionId(null);
+  };
+
+  // Fonction séparée pour mettre à jour le type d'une ligne de tableau
+  const updateRowType = (questionId, rowIndex, value) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newRowTypes = [...(q.rowTypes || [])];
+          newRowTypes[rowIndex] = value;
+
+          // Initialiser les options pour les types qui en ont besoin
+          let newRowOptions = [...(q.rowOptions || [])];
+          if (["choix_unique", "choix_multiple", "binaire"].includes(value)) {
+            if (!newRowOptions[rowIndex]) {
+              newRowOptions[rowIndex] =
+                value === "binaire" ? ["Oui", "Non"] : ["Option 1", "Option 2"];
+            }
+          }
+
+          return {
+            ...q,
+            rowTypes: newRowTypes,
+            rowOptions: newRowOptions,
+          };
+        }
+        return q;
+      })
+    );
+
+    // Si c'est un type qui nécessite des options, ouvrir le modal de configuration
+    if (["choix_unique", "choix_multiple", "binaire"].includes(value)) {
+      setEditingRowOptions(value === "binaire" ? ["Oui", "Non"] : ["Option 1", "Option 2"]);
+      setRowOptionsModalOpen(true);
+    } else {
+      setRowTypeModalOpen(false);
+      setSelectedRowQuestionId(null);
+      setSelectedRowIndex(null);
+    }
+  };
+
+  // Fonctions pour gérer le tableau
+  const addTableRow = (questionId) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newRowIndex = (q.rows || []).length + 1;
+          return {
+            ...q,
+            rows: [...(q.rows || []), `Ligne ${newRowIndex}`],
+            rowTypes: [...(q.rowTypes || []), "texte"], // Ajouter le type par défaut
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  const removeTableRow = (questionId, rowIndex) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newRows = [...(q.rows || [])];
+          newRows.splice(rowIndex, 1);
+          return {
+            ...q,
+            rows: newRows,
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  const updateTableRowLabel = (questionId, rowIndex, newLabel) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newRows = [...(q.rows || [])];
+          newRows[rowIndex] = newLabel;
+          return {
+            ...q,
+            rows: newRows,
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  const addTableColumn = (questionId) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newColumnIndex = (q.columns || []).length + 1;
+          return {
+            ...q,
+            columns: [...(q.columns || []), `Colonne ${newColumnIndex}`],
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  const removeTableColumn = (questionId, columnIndex) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newColumns = [...(q.columns || [])];
+          newColumns.splice(columnIndex, 1);
+          return {
+            ...q,
+            columns: newColumns,
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  const updateTableColumnLabel = (questionId, columnIndex, newLabel) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newColumns = [...(q.columns || [])];
+          newColumns[columnIndex] = newLabel;
+          return {
+            ...q,
+            columns: newColumns,
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  const getTableRowType = (question, rowIndex) => {
+    // S'assurer que rowTypes existe et a la bonne longueur
+    if (!question.rowTypes || !Array.isArray(question.rowTypes)) {
+      return "texte";
+    }
+
+    // Si l'index n'existe pas, retourner "texte" par défaut
+    if (rowIndex >= question.rowTypes.length) {
+      return "texte";
+    }
+
+    return question.rowTypes[rowIndex] || "texte";
+  };
+
+  const getTableRowOptions = (question, rowIndex) => {
+    // S'assurer que rowOptions existe et a la bonne longueur
+    if (!question.rowOptions || !Array.isArray(question.rowOptions)) {
+      return [];
+    }
+
+    // Si l'index n'existe pas, retourner un tableau vide
+    if (rowIndex >= question.rowOptions.length) {
+      return [];
+    }
+
+    return question.rowOptions[rowIndex] || [];
+  };
+
+  const updateTableRowOptions = (questionId, rowIndex, options) => {
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q.id === questionId && q.type === "tableau") {
+          const newRowOptions = [...(q.rowOptions || [])];
+          newRowOptions[rowIndex] = options;
+          return {
+            ...q,
+            rowOptions: newRowOptions,
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  // Fonctions pour le modal d'options supplémentaires
+  const openOptionsModal = (questionId) => {
+    const question = questions.find((q) => q.id === questionId);
+    setSelectedQuestionForOptions(question);
+
+    // Initialiser les valeurs selon le type de question
+    if (question) {
+      if (question.type === "nombre_entier" || question.type === "nombre_decimal") {
+        setValidationCondition(question.content_condition || "");
+        setAValue(question.a_value?.toString() || "");
+        setBValue(question.b_value?.toString() || "");
+      } else {
+        setMaxLength(question.max_length?.toString() || "");
+      }
+
+      // Chercher si cette question est déjà contrôlée par une autre question
+      let foundControlQuestion = null;
+      let foundControlChoices = [];
+
+      // Parcourir toutes les questions pour trouver celle qui contrôle cette question
+      questions.forEach((q) => {
+        if (q.modalities && Array.isArray(q.modalities)) {
+          q.modalities.forEach((modality) => {
+            if (modality.control_parameters && Array.isArray(modality.control_parameters)) {
+              const isControlled = modality.control_parameters.some(
+                (param) => param.libelle === question.label
+              );
+              if (isControlled && modality.control_action === "ENABLE") {
+                foundControlQuestion = q.id;
+                foundControlChoices.push(modality.libelle);
+              }
+            }
+          });
+        }
+      });
+
+      // Initialiser les valeurs de logique d'affichage avec les valeurs existantes
+      setSelectedControlQuestion(foundControlQuestion || "");
+      setSelectedControlChoices(foundControlChoices);
+
+      console.log("=== CHARGEMENT LOGIQUE D'AFFICHAGE EXISTANTE ===");
+      console.log("Question:", question.label);
+      console.log("Question de contrôle trouvée:", foundControlQuestion);
+      console.log("Choix trouvés:", foundControlChoices);
+      console.log("===============================================");
+    }
+
+    setOptionsModalOpen(true);
+    setActiveTab(0);
+  };
+
+  const closeOptionsModal = () => {
+    setOptionsModalOpen(false);
+    setSelectedQuestionForOptions(null);
+    setValidationCondition("");
+    setAValue("");
+    setBValue("");
+    setMaxLength("");
+    setActiveTab(0);
+    setSelectedControlQuestion("");
+    setSelectedControlChoices([]);
+  };
+
+  const saveOptionsModal = () => {
+    if (!selectedQuestionForOptions) return;
+
+    setQuestions((prev) => {
+      let updatedQuestion = {
+        ...selectedQuestionForOptions,
+        content_condition: validationCondition || null,
+        a_value: aValue ? parseInt(aValue) : null,
+        b_value: bValue ? parseInt(bValue) : null,
+        max_length: maxLength ? parseInt(maxLength) : null,
+      };
+
+      // Gérer la logique d'affichage si configurée
+      if (selectedControlQuestion && selectedControlChoices.length > 0) {
+        // Trouver la question de contrôle
+        const controlQuestion = prev.find((q) => q.id === selectedControlQuestion);
+        if (controlQuestion) {
+          // Créer les modalités avec les options de la question de contrôle
+          const updatedModalities = (controlQuestion.options || []).map((option, index) => {
+            const isSelected = selectedControlChoices.includes(option);
+            return {
+              order: index + 1,
+              libelle: option,
+              control_action: isSelected ? "ENABLE" : "DISABLE",
+              control_parameters: isSelected ? [{ libelle: selectedQuestionForOptions.label }] : [],
+            };
+          });
+
+          // Mettre à jour la question de contrôle
+          const updatedQuestions = prev.map((q) =>
+            q.id === selectedControlQuestion ? { ...q, modalities: updatedModalities } : q
+          );
+
+          // Persister dans localStorage
+          localStorage.setItem("formQuestions", JSON.stringify(updatedQuestions));
+
+          // Afficher les paramètres de logique d'affichage dans la console
+          console.log("=== LOGIQUE D'AFFICHAGE CONFIGURÉE ===");
+          console.log("Question contrôlée:", selectedQuestionForOptions.label);
+          console.log("Question de contrôle:", controlQuestion.label);
+          console.log("Choix sélectionnés:", selectedControlChoices);
+          console.log("Modalités mises à jour:", updatedModalities);
+          console.log("=====================================");
+
+          return updatedQuestions;
+        }
+      }
+
+      // Mise à jour normale (sans logique d'affichage)
+      const updatedQuestions = prev.map((q) =>
+        q.id === selectedQuestionForOptions.id ? updatedQuestion : q
+      );
+
+      // Persister dans localStorage
+      localStorage.setItem("formQuestions", JSON.stringify(updatedQuestions));
+
+      // Afficher le paramètre mis à jour dans la console
+      console.log("=== PARAMÈTRE MIS À JOUR ===");
+      console.log("Question:", updatedQuestion.label || updatedQuestion.libelle);
+      console.log("ID:", updatedQuestion.id);
+      console.log("Type:", updatedQuestion.type);
+      console.log("content_condition:", updatedQuestion.content_condition);
+      console.log("a_value:", updatedQuestion.a_value);
+      console.log("b_value:", updatedQuestion.b_value);
+      console.log("max_length:", updatedQuestion.max_length);
+      console.log("Question complète:", updatedQuestion);
+      console.log("==========================");
+
+      return updatedQuestions;
+    });
+
+    closeOptionsModal();
+  };
+
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
   };
 
   const openTypeModal = (questionId) => {
@@ -1738,6 +2086,370 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                           </Box>
                         )}
 
+                        {/* Tableau unifié - Configuration et aperçu */}
+                        {q.type === "tableau" && (
+                          <Box sx={{ ml: 2, mt: 3 }}>
+                            <Box sx={{ mb: 3 }}>
+                              <Typography
+                                variant="h6"
+                                sx={{ mb: 2, color: "#1e293b", fontWeight: "600" }}
+                              >
+                                Configuration du tableau
+                              </Typography>
+
+                              {/* Tableau unifié */}
+                              <Box
+                                sx={{
+                                  border: "2px solid #e2e8f0",
+                                  borderRadius: 2,
+                                  overflow: "hidden",
+                                  backgroundColor: "#fff",
+                                  position: "relative",
+                                }}
+                              >
+                                {/* En-têtes des colonnes */}
+                                <Box
+                                  sx={{
+                                    display: "grid",
+                                    gridTemplateColumns: `200px repeat(${
+                                      (q.columns || ["Colonne 1", "Colonne 2"]).length
+                                    }, 1fr) 50px`,
+                                    borderBottom: "2px solid #e2e8f0",
+                                  }}
+                                >
+                                  {/* Cellule vide en haut à gauche */}
+                                  <Box
+                                    sx={{
+                                      p: 2,
+                                      backgroundColor: "#f8fafc",
+                                      borderRight: "1px solid #e2e8f0",
+                                      fontWeight: "600",
+                                      color: "#374151",
+                                      fontSize: 14,
+                                    }}
+                                  >
+                                    &nbsp;
+                                  </Box>
+                                  {/* En-têtes des colonnes */}
+                                  {(q.columns || ["Colonne 1", "Colonne 2"]).map((col, idx) => (
+                                    <Box
+                                      key={idx}
+                                      sx={{
+                                        p: 2,
+                                        backgroundColor: "#f8fafc",
+                                        borderRight: "1px solid #e2e8f0",
+                                        fontWeight: "600",
+                                        color: "#374151",
+                                        fontSize: 14,
+                                        textAlign: "center",
+                                        position: "relative",
+                                      }}
+                                    >
+                                      <TextField
+                                        variant="standard"
+                                        value={col}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) =>
+                                          updateTableColumnLabel(q.id, idx, e.target.value)
+                                        }
+                                        InputProps={{
+                                          disableUnderline: true,
+                                          style: {
+                                            fontSize: 14,
+                                            fontWeight: "600",
+                                            textAlign: "center",
+                                          },
+                                        }}
+                                        sx={{ width: "100%" }}
+                                      />
+                                      {(q.columns || []).length > 1 && (
+                                        <IconButton
+                                          size="small"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeTableColumn(q.id, idx);
+                                          }}
+                                          sx={{
+                                            position: "absolute",
+                                            top: 2,
+                                            right: 2,
+                                            color: "#ef4444",
+                                            "&:hover": {
+                                              backgroundColor: "#fef2f2",
+                                            },
+                                          }}
+                                        >
+                                          <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                      )}
+                                    </Box>
+                                  ))}
+                                  {/* Bouton ajouter colonne */}
+                                  <Box
+                                    sx={{
+                                      p: 2,
+                                      backgroundColor: "#f8fafc",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      cursor: "pointer",
+                                      "&:hover": {
+                                        backgroundColor: "#e2e8f0",
+                                      },
+                                    }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addTableColumn(q.id);
+                                    }}
+                                  >
+                                    <AddIcon sx={{ color: "#77af0a" }} />
+                                  </Box>
+                                </Box>
+
+                                {/* Lignes du tableau */}
+                                {(q.rows || ["Ligne 1"]).map((row, rowIdx) => (
+                                  <Box
+                                    key={rowIdx}
+                                    sx={{
+                                      display: "grid",
+                                      gridTemplateColumns: `200px repeat(${
+                                        (q.columns || ["Colonne 1", "Colonne 2"]).length
+                                      }, 1fr) 50px`,
+                                      borderBottom:
+                                        rowIdx < (q.rows || []).length - 1
+                                          ? "1px solid #e2e8f0"
+                                          : "none",
+                                    }}
+                                  >
+                                    {/* Libellé de la ligne avec configuration */}
+                                    <Box
+                                      sx={{
+                                        p: 2,
+                                        backgroundColor: "#f8fafc",
+                                        borderRight: "1px solid #e2e8f0",
+                                        fontWeight: "600",
+                                        color: "#374151",
+                                        fontSize: 14,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 1,
+                                      }}
+                                    >
+                                      <TextField
+                                        variant="standard"
+                                        value={row}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) =>
+                                          updateTableRowLabel(q.id, rowIdx, e.target.value)
+                                        }
+                                        InputProps={{
+                                          disableUnderline: true,
+                                          style: {
+                                            fontSize: 14,
+                                            fontWeight: "600",
+                                          },
+                                        }}
+                                        sx={{ flex: 1 }}
+                                      />
+                                      <Tooltip title="Configurer le type de ligne">
+                                        <IconButton
+                                          size="small"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedRowQuestionId(q.id);
+                                            setSelectedRowIndex(rowIdx);
+                                            setRowTypeModalOpen(true);
+                                          }}
+                                          sx={{
+                                            color: "#77af0a",
+                                            "&:hover": {
+                                              backgroundColor: "#f0fdf4",
+                                            },
+                                          }}
+                                        >
+                                          <MoreVertIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                      {(q.rows || []).length > 1 && (
+                                        <IconButton
+                                          size="small"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            removeTableRow(q.id, rowIdx);
+                                          }}
+                                          sx={{
+                                            color: "#ef4444",
+                                            "&:hover": {
+                                              backgroundColor: "#fef2f2",
+                                            },
+                                          }}
+                                        >
+                                          <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                      )}
+                                    </Box>
+
+                                    {/* Cellules de données avec aperçu selon le type */}
+                                    {(q.columns || ["Colonne 1", "Colonne 2"]).map(
+                                      (col, colIdx) => (
+                                        <Box
+                                          key={colIdx}
+                                          sx={{
+                                            p: 2,
+                                            borderRight: "1px solid #e2e8f0",
+                                            backgroundColor: "#fff",
+                                            minHeight: 40,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                          }}
+                                        >
+                                          {/* Aperçu selon le type de ligne */}
+                                          {(() => {
+                                            const rowType = getTableRowType(q, rowIdx);
+                                            switch (rowType) {
+                                              case "texte":
+                                                return (
+                                                  <TextField
+                                                    size="small"
+                                                    variant="outlined"
+                                                    placeholder="Texte"
+                                                    disabled
+                                                    sx={{ width: "100%" }}
+                                                  />
+                                                );
+                                              case "nombre_entier":
+                                                return (
+                                                  <TextField
+                                                    size="small"
+                                                    variant="outlined"
+                                                    type="number"
+                                                    placeholder="Nombre"
+                                                    disabled
+                                                    sx={{ width: "100%" }}
+                                                  />
+                                                );
+                                              case "choix_unique":
+                                                const uniqueOptions = getTableRowOptions(q, rowIdx);
+                                                return (
+                                                  <Box
+                                                    sx={{
+                                                      display: "flex",
+                                                      alignItems: "center",
+                                                      gap: 1,
+                                                      width: "100%",
+                                                    }}
+                                                  >
+                                                    <RadioButtonCheckedIcon
+                                                      fontSize="small"
+                                                      sx={{ color: "#77af0a" }}
+                                                    />
+                                                    <Typography fontSize="12" color="#64748b">
+                                                      {uniqueOptions.length > 0
+                                                        ? `${uniqueOptions.length} options`
+                                                        : "Choix"}
+                                                    </Typography>
+                                                  </Box>
+                                                );
+                                              case "choix_multiple":
+                                                const multipleOptions = getTableRowOptions(
+                                                  q,
+                                                  rowIdx
+                                                );
+                                                return (
+                                                  <Box
+                                                    sx={{
+                                                      display: "flex",
+                                                      alignItems: "center",
+                                                      gap: 1,
+                                                      width: "100%",
+                                                    }}
+                                                  >
+                                                    <CheckBoxIcon
+                                                      fontSize="small"
+                                                      sx={{ color: "#77af0a" }}
+                                                    />
+                                                    <Typography fontSize="12" color="#64748b">
+                                                      {multipleOptions.length > 0
+                                                        ? `${multipleOptions.length} options`
+                                                        : "Multi"}
+                                                    </Typography>
+                                                  </Box>
+                                                );
+                                              case "binaire":
+                                                const binaireOptions = getTableRowOptions(
+                                                  q,
+                                                  rowIdx
+                                                );
+                                                return (
+                                                  <Box
+                                                    sx={{
+                                                      display: "flex",
+                                                      alignItems: "center",
+                                                      gap: 1,
+                                                      width: "100%",
+                                                    }}
+                                                  >
+                                                    <ToggleOnIcon
+                                                      fontSize="small"
+                                                      sx={{ color: "#77af0a" }}
+                                                    />
+                                                    <Typography fontSize="12" color="#64748b">
+                                                      {binaireOptions.join(" / ")}
+                                                    </Typography>
+                                                  </Box>
+                                                );
+                                              default:
+                                                return (
+                                                  <TextField
+                                                    size="small"
+                                                    variant="outlined"
+                                                    placeholder="Texte"
+                                                    disabled
+                                                    sx={{ width: "100%" }}
+                                                  />
+                                                );
+                                            }
+                                          })()}
+                                        </Box>
+                                      )
+                                    )}
+                                  </Box>
+                                ))}
+                              </Box>
+
+                              {/* Bouton ajouter ligne en dessous du tableau */}
+                              <Box
+                                sx={{
+                                  mt: 2,
+                                  display: "flex",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addTableRow(q.id);
+                                  }}
+                                  startIcon={<AddIcon />}
+                                  sx={{
+                                    borderColor: "#77af0a",
+                                    color: "#77af0a",
+                                    "&:hover": {
+                                      borderColor: "#5a8a08",
+                                      backgroundColor: "rgba(119, 175, 10, 0.04)",
+                                    },
+                                  }}
+                                >
+                                  Ajouter une ligne
+                                </Button>
+                              </Box>
+                            </Box>
+                          </Box>
+                        )}
+
                         <Box display="flex" gap={1} mt={2}>
                           <Tooltip title="Copier la question">
                             <IconButton
@@ -1771,9 +2483,9 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                               <DeleteIcon sx={{ fontSize: 24 }} />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Plus d'options">
+                          <Tooltip title="Options supplémentaires">
                             <IconButton
-                              onClick={() => alert("Options supplémentaires à venir")}
+                              onClick={() => openOptionsModal(q.id)}
                               sx={{
                                 color: "#64748b",
                                 backgroundColor: "#f1f5f9",
@@ -1855,10 +2567,14 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
         >
           <Box sx={{ mb: 3, textAlign: "center" }}>
             <Typography variant="h5" sx={{ fontWeight: "bold", color: "#2c3e50", mb: 1 }}>
-              Choisir le type de question
+              {selectedRowIndex !== null
+                ? "Choisir le type de ligne"
+                : "Choisir le type de question"}
             </Typography>
             <Typography variant="body2" sx={{ color: "#7f8c8d" }}>
-              Sélectionnez le type de question qui correspond le mieux à vos besoins
+              {selectedRowIndex !== null
+                ? "Sélectionnez le type de données pour cette ligne du tableau"
+                : "Sélectionnez le type de question qui correspond le mieux à vos besoins"}
             </Typography>
           </Box>
 
@@ -2161,6 +2877,798 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
               sx={{ borderRadius: 2, px: 4, background: "#77af0a", color: "#fff" }}
             >
               Générer la cascade
+            </Button>
+          </Box>
+        </Paper>
+      </Modal>
+
+      {/* Modal pour configurer le type de ligne du tableau */}
+      <Modal
+        open={rowTypeModalOpen}
+        onClose={() => setRowTypeModalOpen(false)}
+        aria-labelledby="row-type-selection-modal"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          p: 2,
+        }}
+      >
+        <Paper
+          sx={{
+            width: "90%",
+            maxWidth: 800,
+            maxHeight: "90vh",
+            overflow: "auto",
+            borderRadius: 3,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            p: 3,
+            background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+          }}
+        >
+          <Box sx={{ mb: 3, textAlign: "center" }}>
+            <Typography variant="h5" sx={{ fontWeight: "bold", color: "#2c3e50", mb: 1 }}>
+              Choisir le type de ligne
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#7f8c8d" }}>
+              Sélectionnez le type de données pour cette ligne du tableau
+            </Typography>
+          </Box>
+
+          <Grid container spacing={2}>
+            {questionTypes.map((type) => (
+              <Grid item xs={12} sm={6} md={3} key={type.value}>
+                <Paper
+                  onClick={() => updateRowType(selectedRowQuestionId, selectedRowIndex, type.value)}
+                  sx={{
+                    p: 2,
+                    cursor: "pointer",
+                    borderRadius: 2,
+                    border: "2px solid transparent",
+                    transition: "all 0.3s ease",
+                    background: "white",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    "&:hover": {
+                      transform: "translateY(-4px)",
+                      boxShadow: "0 8px 25px rgba(0,0,0,0.15)",
+                      borderColor: "#77af0a",
+                    },
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    textAlign: "center",
+                    minHeight: 120,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      color: "#77af0a",
+                      mb: 1,
+                      "& .MuiSvgIcon-root": {
+                        fontSize: "2.5rem",
+                      },
+                    }}
+                  >
+                    {type.icon}
+                  </Box>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontWeight: "600",
+                      color: "#2c3e50",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {type.label}
+                  </Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Box sx={{ mt: 3, textAlign: "center" }}>
+            <Button
+              onClick={() => setRowTypeModalOpen(false)}
+              variant="outlined"
+              sx={{
+                borderRadius: 2,
+                px: 4,
+                py: 1.5,
+                borderColor: "#77af0a",
+                color: "#77af0a",
+                "&:hover": {
+                  borderColor: "#5a8a08",
+                  backgroundColor: "rgba(119, 175, 10, 0.04)",
+                },
+              }}
+            >
+              Annuler
+            </Button>
+          </Box>
+        </Paper>
+      </Modal>
+
+      {/* Modal pour configurer les options d'une ligne */}
+      <Modal
+        open={rowOptionsModalOpen}
+        onClose={() => setRowOptionsModalOpen(false)}
+        aria-labelledby="row-options-modal"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          p: 2,
+        }}
+      >
+        <Paper
+          sx={{
+            width: "90%",
+            maxWidth: 600,
+            maxHeight: "90vh",
+            overflow: "auto",
+            borderRadius: 3,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            p: 3,
+            background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+          }}
+        >
+          <Box sx={{ mb: 3, textAlign: "center" }}>
+            <Typography variant="h5" sx={{ fontWeight: "bold", color: "#2c3e50", mb: 1 }}>
+              Configurer les options de la ligne
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#7f8c8d" }}>
+              Définissez les options disponibles pour cette ligne du tableau
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 3 }}>
+            {editingRowOptions.map((option, idx) => (
+              <Box
+                key={idx}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  mb: 2,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  value={option}
+                  onChange={(e) => {
+                    const newOptions = [...editingRowOptions];
+                    newOptions[idx] = e.target.value;
+                    setEditingRowOptions(newOptions);
+                  }}
+                  placeholder={`Option ${idx + 1}`}
+                  size="small"
+                />
+                <IconButton
+                  onClick={() => {
+                    const newOptions = editingRowOptions.filter((_, i) => i !== idx);
+                    setEditingRowOptions(newOptions);
+                  }}
+                  sx={{
+                    color: "#ef4444",
+                    "&:hover": {
+                      backgroundColor: "#fef2f2",
+                    },
+                  }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </Box>
+            ))}
+
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setEditingRowOptions([
+                  ...editingRowOptions,
+                  `Option ${editingRowOptions.length + 1}`,
+                ]);
+              }}
+              startIcon={<AddIcon />}
+              sx={{
+                borderColor: "#77af0a",
+                color: "#77af0a",
+                "&:hover": {
+                  borderColor: "#5a8a08",
+                  backgroundColor: "rgba(119, 175, 10, 0.04)",
+                },
+              }}
+            >
+              Ajouter une option
+            </Button>
+          </Box>
+
+          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+            <Button
+              onClick={() => {
+                setRowOptionsModalOpen(false);
+                setRowTypeModalOpen(false);
+                setSelectedRowQuestionId(null);
+                setSelectedRowIndex(null);
+              }}
+              variant="outlined"
+              sx={{
+                borderColor: "#d32f2f",
+                color: "#d32f2f",
+                "&:hover": {
+                  borderColor: "#b71c1c",
+                  backgroundColor: "rgba(211, 47, 47, 0.04)",
+                },
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={() => {
+                updateTableRowOptions(selectedRowQuestionId, selectedRowIndex, editingRowOptions);
+                setRowOptionsModalOpen(false);
+                setRowTypeModalOpen(false);
+                setSelectedRowQuestionId(null);
+                setSelectedRowIndex(null);
+              }}
+              variant="contained"
+              sx={{
+                backgroundColor: "#77af0a",
+                "&:hover": {
+                  backgroundColor: "#5a8a08",
+                },
+              }}
+            >
+              Confirmer
+            </Button>
+          </Box>
+        </Paper>
+      </Modal>
+
+      {/* Modal d'options supplémentaires */}
+      <Modal
+        open={optionsModalOpen}
+        onClose={closeOptionsModal}
+        aria-labelledby="options-modal"
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}
+      >
+        <Paper
+          sx={{
+            width: "90%",
+            maxWidth: 800,
+            maxHeight: "90vh",
+            overflow: "auto",
+            borderRadius: 3,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            p: 3,
+            background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+          }}
+        >
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              variant="h5"
+              sx={{ fontWeight: "bold", color: "#2c3e50", mb: 1, textAlign: "left" }}
+            >
+              Options supplémentaires
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left", mb: 2 }}>
+              Configurez les paramètres avancés pour cette question :
+            </Typography>
+
+            {/* Tabs */}
+            <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+              <Tabs value={activeTab} onChange={handleTabChange} aria-label="options tabs">
+                <Tab label="Condition de validation" />
+                <Tab label="Logique d'affichage" />
+                <Tab label="Répétition de la question" />
+              </Tabs>
+            </Box>
+
+            {/* Tab 1: Condition de validation */}
+            {activeTab === 0 && (
+              <Box>
+                <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left", mb: 2 }}>
+                  {selectedQuestionForOptions &&
+                  (selectedQuestionForOptions.type === "nombre_entier" ||
+                    selectedQuestionForOptions.type === "nombre_decimal")
+                    ? "Définissez les conditions de validation pour les valeurs numériques :"
+                    : "Définissez la longueur maximale autorisée pour cette question :"}
+                </Typography>
+
+                {selectedQuestionForOptions &&
+                (selectedQuestionForOptions.type === "nombre_entier" ||
+                  selectedQuestionForOptions.type === "nombre_decimal") ? (
+                  <Box>
+                    <FormControl fullWidth sx={{ mb: 3 }}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ mb: 1, color: "#374151", textAlign: "left" }}
+                      >
+                        Condition de validation
+                      </Typography>
+                      <Select
+                        value={validationCondition}
+                        onChange={(e) => setValidationCondition(e.target.value)}
+                        displayEmpty
+                        sx={{
+                          background: "#fff",
+                          borderRadius: 2,
+                          minHeight: "48px !important",
+                          "& .MuiOutlinedInput-notchedOutline": {
+                            borderColor: validationCondition ? "#77af0a" : "#e2e8f0",
+                          },
+                          "&:hover .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "#cbd5e1",
+                          },
+                          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "#77af0a",
+                          },
+                          "& .MuiSelect-select": {
+                            padding: "12px 16px",
+                            fontSize: "14px",
+                          },
+                        }}
+                      >
+                        <MenuItem value="">
+                          <em>Aucune condition</em>
+                        </MenuItem>
+                        <MenuItem value="GREATER_THAN_A">Supérieur à</MenuItem>
+                        <MenuItem value="LESS_THAN_A">Inférieur à</MenuItem>
+                        <MenuItem value="BETWEEN_A_AND_B">Compris entre</MenuItem>
+                        <MenuItem value="GREATER_EQUAL_THAN_A">Supérieur ou égal à</MenuItem>
+                        <MenuItem value="LESS_EQUAL_THAN_A">Inférieur ou égal à</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+                      <TextField
+                        label="Valeur A"
+                        type="number"
+                        value={aValue}
+                        onChange={(e) => setAValue(e.target.value)}
+                        size="small"
+                        required
+                        fullWidth
+                        helperText="Toujours obligatoire"
+                        sx={{
+                          background: "#fff",
+                          borderRadius: 2,
+                          "& .MuiOutlinedInput-root": {
+                            "& fieldset": {
+                              borderColor: aValue ? "#77af0a" : "#e2e8f0",
+                            },
+                            "&:hover fieldset": {
+                              borderColor: "#cbd5e1",
+                            },
+                            "&.Mui-focused fieldset": {
+                              borderColor: "#77af0a",
+                            },
+                          },
+                        }}
+                      />
+                      {validationCondition === "BETWEEN_A_AND_B" && (
+                        <TextField
+                          label="Valeur B"
+                          type="number"
+                          value={bValue}
+                          onChange={(e) => setBValue(e.target.value)}
+                          size="small"
+                          required
+                          fullWidth
+                          helperText="Obligatoire pour 'Compris entre'"
+                          sx={{
+                            background: "#fff",
+                            borderRadius: 2,
+                            "& .MuiOutlinedInput-root": {
+                              "& fieldset": {
+                                borderColor: bValue ? "#77af0a" : "#e2e8f0",
+                              },
+                              "&:hover fieldset": {
+                                borderColor: "#cbd5e1",
+                              },
+                              "&.Mui-focused fieldset": {
+                                borderColor: "#77af0a",
+                              },
+                            },
+                          }}
+                        />
+                      )}
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box>
+                    <TextField
+                      label="Longueur maximale"
+                      type="number"
+                      value={maxLength}
+                      onChange={(e) => setMaxLength(e.target.value)}
+                      size="small"
+                      fullWidth
+                      helperText="Nombre maximum de caractères autorisés"
+                      sx={{
+                        mb: 3,
+                        background: "#fff",
+                        borderRadius: 2,
+                        "& .MuiOutlinedInput-root": {
+                          "& fieldset": {
+                            borderColor: maxLength ? "#77af0a" : "#e2e8f0",
+                          },
+                          "&:hover fieldset": {
+                            borderColor: "#cbd5e1",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: "#77af0a",
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+                )}
+              </Box>
+            )}
+
+            {/* Tab 2: Logique d'affichage */}
+            {activeTab === 1 && (
+              <Box>
+                <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left", mb: 2 }}>
+                  Configurez les conditions d&apos;affichage de cette question :
+                </Typography>
+
+                {/* Sélection de la question de contrôle */}
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Question de contrôle</InputLabel>
+                  <Select
+                    value={selectedControlQuestion}
+                    onChange={(e) => {
+                      setSelectedControlQuestion(e.target.value);
+                      setSelectedControlChoices([]); // Réinitialiser les choix
+                    }}
+                    sx={{
+                      background: "#fff",
+                      borderRadius: 2,
+                      minHeight: "40px",
+                      "& .MuiOutlinedInput-root": {
+                        minHeight: "40px",
+                        "& fieldset": {
+                          borderColor: selectedControlQuestion ? "#77af0a" : "#e2e8f0",
+                        },
+                        "&:hover fieldset": {
+                          borderColor: "#cbd5e1",
+                        },
+                        "&.Mui-focused fieldset": {
+                          borderColor: "#77af0a",
+                        },
+                        "& .MuiSelect-select": {
+                          padding: "16px 14px",
+                          fontSize: "14px",
+                          lineHeight: "1.5",
+                        },
+                      },
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>Sélectionnez une question</em>
+                    </MenuItem>
+                    {questions
+                      .filter(
+                        (q) =>
+                          ["choix_unique", "choix_multiple", "binaire"].includes(q.type) &&
+                          q.id !== selectedQuestionForOptions?.id
+                      )
+                      .map((q) => (
+                        <MenuItem key={q.id} value={q.id}>
+                          {q.label}
+                        </MenuItem>
+                      ))}
+                  </Select>
+                </FormControl>
+
+                {/* Affichage des choix de la question sélectionnée */}
+                {selectedControlQuestion && (
+                  <Box>
+                    <Typography variant="body2" sx={{ color: "#6b7280", mb: 2 }}>
+                      Sélectionnez les réponses qui déclencheront l&apos;affichage de cette question
+                      :
+                    </Typography>
+
+                    {(() => {
+                      const controlQuestion = questions.find(
+                        (q) => q.id === selectedControlQuestion
+                      );
+                      if (!controlQuestion) return null;
+
+                      const choices = controlQuestion.options || [];
+
+                      return (
+                        <Box sx={{ mb: 3 }}>
+                          {/* Question de contrôle affichée */}
+                          <Box
+                            sx={{
+                              p: 2,
+                              mb: 2,
+                              backgroundColor: "#f0f9ff",
+                              border: "2px solid rgb(233, 113, 14)",
+                              borderRadius: 2,
+                              borderLeft: "6px solid rgb(233, 113, 14)",
+                            }}
+                          >
+                            <Typography
+                              variant="subtitle2"
+                              sx={{ color: "#0c4a6e", fontWeight: "bold", mb: 1 }}
+                            >
+                              Question de contrôle :
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: "#0369a1" }}>
+                              {controlQuestion.label}
+                            </Typography>
+                          </Box>
+
+                          {/* Grille des choix */}
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                              gap: 2,
+                            }}
+                          >
+                            {choices.map((choice, index) => {
+                              const isSelected = selectedControlChoices.includes(choice);
+                              return (
+                                <Box
+                                  key={index}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedControlChoices(
+                                        selectedControlChoices.filter((c) => c !== choice)
+                                      );
+                                    } else {
+                                      setSelectedControlChoices([
+                                        ...selectedControlChoices,
+                                        choice,
+                                      ]);
+                                    }
+                                  }}
+                                  sx={{
+                                    p: 2,
+                                    border: isSelected ? "2px solid #77af0a" : "2px solid #e2e8f0",
+                                    borderRadius: 2,
+                                    backgroundColor: isSelected ? "#f0fdf4" : "#ffffff",
+                                    cursor: "pointer",
+                                    transition: "all 0.3s ease",
+                                    position: "relative",
+                                    overflow: "hidden",
+                                    "&:hover": {
+                                      borderColor: isSelected ? "#5a8a08" : "#cbd5e1",
+                                      backgroundColor: isSelected ? "#dcfce7" : "#f8fafc",
+                                      transform: "translateY(-2px)",
+                                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                    },
+                                    "&::before": isSelected
+                                      ? {
+                                          content: '""',
+                                          position: "absolute",
+                                          top: 0,
+                                          left: 0,
+                                          right: 0,
+                                          height: "4px",
+                                          backgroundColor: "#77af0a",
+                                        }
+                                      : {},
+                                  }}
+                                >
+                                  {/* Indicateur de sélection */}
+                                  <Box
+                                    sx={{
+                                      position: "absolute",
+                                      top: 8,
+                                      right: 8,
+                                      width: 20,
+                                      height: 20,
+                                      borderRadius: "50%",
+                                      backgroundColor: isSelected ? "#77af0a" : "#e2e8f0",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      transition: "all 0.3s ease",
+                                    }}
+                                  >
+                                    {isSelected && (
+                                      <Box
+                                        sx={{
+                                          width: 8,
+                                          height: 8,
+                                          borderRadius: "50%",
+                                          backgroundColor: "#ffffff",
+                                        }}
+                                      />
+                                    )}
+                                  </Box>
+
+                                  {/* Contenu de la carte */}
+                                  <Box sx={{ pr: 3 }}>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontWeight: isSelected ? "600" : "500",
+                                        color: isSelected ? "#166534" : "#374151",
+                                        textAlign: "center",
+                                        fontSize: "14px",
+                                      }}
+                                    >
+                                      {choice}
+                                    </Typography>
+                                  </Box>
+
+                                  {/* Indicateur visuel */}
+                                  <Box
+                                    sx={{
+                                      mt: 1,
+                                      textAlign: "center",
+                                    }}
+                                  >
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        color: isSelected ? "#77af0a" : "#9ca3af",
+                                        fontWeight: "500",
+                                        fontSize: "11px",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.5px",
+                                      }}
+                                    >
+                                      {isSelected ? "✓ Sélectionné" : "Cliquer pour sélectionner"}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+
+                          {/* Instructions */}
+                          <Box
+                            sx={{
+                              mt: 2,
+                              p: 2,
+                              backgroundColor: "#fef3c7",
+                              border: "1px solid #f59e0b",
+                              borderRadius: 2,
+                            }}
+                          >
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "#92400e",
+                                fontWeight: "500",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              💡 Cliquez sur les cartes pour sélectionner les réponses qui
+                              déclencheront l&apos;affichage de la question
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })()}
+                  </Box>
+                )}
+
+                {selectedControlQuestion && selectedControlChoices.length > 0 && (
+                  <Box
+                    sx={{
+                      mt: 3,
+                      p: 3,
+                      background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+                      border: "2px solid #77af0a",
+                      borderRadius: 3,
+                      position: "relative",
+                      overflow: "hidden",
+                      "&::before": {
+                        content: '""',
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "6px",
+                        height: "100%",
+                        backgroundColor: "#77af0a",
+                      },
+                    }}
+                  >
+                    <Box sx={{ pl: 2 }}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{
+                          color: "#166534",
+                          fontWeight: "bold",
+                          mb: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                        }}
+                      >
+                        🎯 Configuration active
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "#15803d", mb: 2 }}>
+                        Cette question s&apos;affichera quand l&apos;utilisateur sélectionnera :
+                      </Typography>
+
+                      {/* Affichage des choix sélectionnés */}
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                        {selectedControlChoices.map((choice, index) => (
+                          <Chip
+                            key={index}
+                            label={choice}
+                            size="small"
+                            sx={{
+                              backgroundColor: "#77af0a",
+                              color: "#ffffff",
+                              fontWeight: "600",
+                              fontSize: "12px",
+                              "& .MuiChip-label": {
+                                px: 2,
+                              },
+                            }}
+                          />
+                        ))}
+                      </Box>
+
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "#15803d",
+                          fontStyle: "italic",
+                          mt: 2,
+                          display: "block",
+                        }}
+                      >
+                        ✅ Configuration prête à être enregistrée
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            )}
+
+            {/* Tab 3: Répétition de la question */}
+            {activeTab === 2 && (
+              <Box>
+                <Typography variant="body2" sx={{ color: "#7f8c8d", textAlign: "left", mb: 2 }}>
+                  Configurez la répétition de cette question :
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "#6b7280", fontStyle: "italic", textAlign: "left" }}
+                >
+                  Cette fonctionnalité sera disponible prochainement.
+                </Typography>
+              </Box>
+            )}
+          </Box>
+
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+            <Button
+              onClick={closeOptionsModal}
+              variant="outlined"
+              sx={{
+                borderRadius: 2,
+                px: 4,
+                borderColor: "#d32f2f",
+                color: "#d32f2f",
+                "&:hover": {
+                  borderColor: "#b71c1c",
+                  backgroundColor: "rgba(211, 47, 47, 0.04)",
+                },
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={saveOptionsModal}
+              variant="contained"
+              sx={{ borderRadius: 2, px: 4, background: "#77af0a", color: "#fff" }}
+            >
+              Enregistrer
             </Button>
           </Box>
         </Paper>

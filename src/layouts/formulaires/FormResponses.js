@@ -207,29 +207,154 @@ export default function FormResponses() {
   const handleExport = async () => {
     setExportLoading(true);
     try {
-      const response = await formService.downloadFormResponses(formId);
-      const disposition = response.headers["content-disposition"];
-      let filename = "export_form_responses.csv";
-      if (disposition && disposition.indexOf("filename=") !== -1) {
-        filename = disposition.split("filename=")[1].replace(/['"]/g, "");
-        if (!filename.endsWith(".csv")) filename += ".csv";
-      }
-      const blob = new Blob([response.data], { type: "text/csv" });
-      if (blob.type && !blob.type.includes("application") && !blob.type.includes("csv")) {
-        blob.text().then((text) => {
-          alert("Erreur lors de l'export :\n" + text);
+      // Générer le nom de fichier avec date et heure
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, ""); // HHMMSS
+      const filename = `exportresponse${dateStr}${timeStr}.csv`;
+
+      // Préparer les données pour l'export
+      const exportData = [];
+
+      // En-têtes
+      const headers = [
+        "ID",
+        "Créé par",
+        "Email",
+        "Date de création",
+        ...questions.map((q) => q.libelle || q.label || `Q${q.order}`),
+      ];
+      exportData.push(headers);
+
+      // Données des réponses
+      responses.forEach((resp) => {
+        const paramMap = {};
+        const paramObs = {};
+        const paramModalities = {};
+
+        if (Array.isArray(resp.parameter_responses)) {
+          resp.parameter_responses.forEach((pr) => {
+            paramMap[pr.parameter_libelle] = pr.value;
+            paramObs[pr.parameter_libelle] = pr.observation;
+            paramModalities[pr.parameter_libelle] = pr.modalities;
+          });
+        }
+
+        const row = [
+          resp.response_form.id,
+          resp.response_form.created_by || "",
+          resp.response_form.created_by_email || "",
+          resp.response_form.created_at
+            ? new Date(resp.response_form.created_at).toLocaleDateString()
+            : "",
+        ];
+
+        // Ajouter les réponses aux questions
+        questions.forEach((q) => {
+          const key = q.libelle || q.label;
+          let value = paramMap[key] || "";
+          let obs = paramObs[key] || null;
+          let modalities = paramModalities[key] || [];
+
+          // Traitement spécial pour les types de questions
+          if (
+            q.type === "fichier" &&
+            value &&
+            typeof value === "string" &&
+            (value.startsWith("http://") || value.startsWith("https://"))
+          ) {
+            value = value; // Garder l'URL
+          } else if (
+            (q.type === "position" || q.type === "gps" || q.type === "localisation") &&
+            value
+          ) {
+            if (typeof value === "string" && value.includes(",")) {
+              value = value; // Garder les coordonnées
+            } else if (
+              (typeof value === "string" && value.trim().startsWith("{")) ||
+              typeof value === "object"
+            ) {
+              let posObj = value;
+              if (typeof value === "string") {
+                try {
+                  posObj = JSON.parse(value);
+                } catch (e) {
+                  posObj = null;
+                }
+              }
+              if (posObj && posObj.latitude && posObj.longitude) {
+                value = `${posObj.latitude}, ${posObj.longitude}`;
+              }
+            }
+          }
+
+          // Ajouter l'observation si elle existe
+          if (obs) {
+            value += ` [Obs: ${obs}]`;
+          }
+
+          // Ajouter les modalités si elles existent
+          if (modalities && modalities.length > 0) {
+            value += ` [Modalités: ${modalities.map((m) => m.libelle).join(", ")}]`;
+          }
+
+          row.push(value);
         });
-        setExportLoading(false);
-        return;
-      }
+
+        exportData.push(row);
+      });
+
+      // Convertir en CSV avec BOM pour Excel
+      const BOM = "\uFEFF"; // Byte Order Mark pour UTF-8
+      const csvContent =
+        BOM +
+        exportData
+          .map(
+            (row) =>
+              row
+                .map((cell) => {
+                  // Nettoyer et échapper les cellules
+                  const cellStr = String(cell || "").trim();
+
+                  // Remplacer les retours à la ligne et tabulations
+                  const cleanCell = cellStr
+                    .replace(/\r\n/g, " ")
+                    .replace(/\n/g, " ")
+                    .replace(/\r/g, " ")
+                    .replace(/\t/g, " ");
+
+                  // Échapper les guillemets et entourer de guillemets si nécessaire
+                  if (
+                    cleanCell.includes(",") ||
+                    cleanCell.includes('"') ||
+                    cleanCell.includes(";")
+                  ) {
+                    return `"${cleanCell.replace(/"/g, '""')}"`;
+                  }
+                  return cleanCell;
+                })
+                .join(";") // Utiliser le point-virgule comme séparateur pour Excel
+          )
+          .join("\r\n"); // Utiliser \r\n pour Windows
+
+      // Créer et télécharger le fichier
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+        endings: "native",
+      });
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-    } catch (e) {
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erreur lors de l'export:", error);
       alert("Erreur lors de l'export.");
     }
     setExportLoading(false);

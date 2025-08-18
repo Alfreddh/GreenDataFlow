@@ -23,6 +23,8 @@ import {
   Tooltip,
   Fade,
   Slide,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -298,6 +300,11 @@ export default function FormHeader() {
                 options: [], // sera rempli juste après
                 active: false,
                 order: param.order || 1,
+                // Ajouter les paramètres de validation
+                content_condition: param.content_condition || null,
+                a_value: param.a_value || null,
+                b_value: param.b_value || null,
+                max_length: param.max_length || null,
               };
 
               // Ajouter les informations de section
@@ -381,6 +388,11 @@ export default function FormHeader() {
                   options: [], // sera rempli juste après
                   active: false,
                   order: param.order || 1,
+                  // Ajouter les paramètres de validation
+                  content_condition: param.content_condition || null,
+                  a_value: param.a_value || null,
+                  b_value: param.b_value || null,
+                  max_length: param.max_length || null,
                 };
 
                 // Gérer les cascades
@@ -669,6 +681,11 @@ export default function FormHeader() {
           type: convertLocalTypeToAPIType(q.type),
           is_required: q.required,
           modalities: [],
+          // Ajouter les paramètres de validation
+          content_condition: q.content_condition || null,
+          a_value: q.a_value || null,
+          b_value: q.b_value || null,
+          max_length: q.max_length || null,
         };
 
         // Gérer les cascades : parent_parameter_libelle
@@ -697,7 +714,7 @@ export default function FormHeader() {
               order: modality.order || i + 1,
               libelle: modality.libelle || q.options[i] || "",
               control_parameters: modality.control_parameters || [],
-              control_condition: "ENABLE",
+              control_action: modality.control_action || "ENABLE",
               ...(modality.parent_modality_libelle && {
                 parent_modality_libelle: modality.parent_modality_libelle,
               }),
@@ -708,7 +725,7 @@ export default function FormHeader() {
               order: i + 1,
               libelle: opt,
               control_parameters: [],
-              control_condition: "ENABLE",
+              control_action: "ENABLE",
             }));
           }
         }
@@ -827,7 +844,74 @@ export default function FormHeader() {
     setPreviewOpen(true);
   };
 
-  const renderPreview = () => {
+  // Composant d'aperçu avec logique d'affichage conditionnelle
+  const FormPreview = () => {
+    const allQuestions = JSON.parse(localStorage.getItem("formQuestions") || "[]");
+    const [formValues, setFormValues] = React.useState({});
+
+    // Fonction pour vérifier si une question doit être affichée selon la logique d'affichage
+    const shouldShowQuestion = (question) => {
+      // Vérifier si cette question est contrôlée par une autre question
+      const controlQuestion = allQuestions.find(
+        (q) =>
+          q.modalities &&
+          q.modalities.some(
+            (mod) =>
+              mod.control_parameters &&
+              mod.control_parameters.some((param) => param.libelle === question.label)
+          )
+      );
+
+      if (!controlQuestion) return true;
+
+      // Trouver les modalités qui contrôlent cette question
+      const controllingModalities = controlQuestion.modalities.filter(
+        (mod) =>
+          mod.control_parameters &&
+          mod.control_parameters.some((param) => param.libelle === question.label)
+      );
+
+      // Vérifier si l'utilisateur a sélectionné une des modalités déclencheuses
+      const selectedValue = formValues[controlQuestion.label];
+
+      console.log("=== LOGIQUE D'AFFICHAGE DEBUG ===");
+      console.log("Question:", question.label);
+      console.log("Question de contrôle:", controlQuestion.label);
+      console.log("Valeur sélectionnée:", selectedValue);
+      console.log("Modalités contrôlantes:", controllingModalities);
+      console.log("FormValues:", formValues);
+
+      if (!selectedValue) {
+        console.log("Aucune valeur sélectionnée, question masquée");
+        return false;
+      }
+
+      const shouldShow = controllingModalities.some((mod) => {
+        // Gérer les tableaux et les chaînes
+        const selectedValues = Array.isArray(selectedValue) ? selectedValue : [selectedValue];
+        return selectedValues.includes(mod.libelle) && mod.control_action === "ENABLE";
+      });
+
+      console.log("Question visible:", shouldShow);
+      console.log("================================");
+
+      return shouldShow;
+    };
+
+    // Fonction pour mettre à jour les valeurs du formulaire
+    const updateFormValue = (questionLabel, value) => {
+      console.log("=== MISE À JOUR VALEUR ===");
+      console.log("Question:", questionLabel);
+      console.log("Nouvelle valeur:", value);
+      console.log("========================");
+
+      setFormValues((prev) => {
+        const newValues = { ...prev, [questionLabel]: value };
+        console.log("Nouvelles valeurs:", newValues);
+        return newValues;
+      });
+    };
+
     return (
       <Box sx={{ maxWidth: 800, mx: "auto", mt: 4, mb: 4 }}>
         <Paper
@@ -880,222 +964,468 @@ export default function FormHeader() {
             {localStorage.getItem("formDescription") || ""}
           </Typography>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {JSON.parse(localStorage.getItem("formQuestions") || "[]").map((question) => (
-              <Box
-                key={question.id}
-                sx={{
-                  p: 3,
-                  borderRadius: 2,
-                  border: "1px solid #f1f5f9",
-                  backgroundColor: "#fafbfc",
-                  transition: "all 0.2s ease",
-                  "&:hover": {
-                    borderColor: "#e2e8f0",
-                    backgroundColor: "#f8fafc",
-                  },
-                }}
-              >
-                <Typography
-                  variant="h6"
+            {allQuestions.map((question) => {
+              // Vérifier si la question doit être affichée
+              const isVisible = shouldShowQuestion(question);
+
+              if (!isVisible) return null;
+
+              return (
+                <Box
+                  key={question.id}
                   sx={{
-                    mb: 2,
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    color: "#1e293b",
+                    p: 3,
+                    borderRadius: 2,
+                    border: "1px solid #f1f5f9",
+                    backgroundColor: "#fafbfc",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      borderColor: "#e2e8f0",
+                      backgroundColor: "#f8fafc",
+                    },
                   }}
                 >
-                  {question.label}
-                  {question.required && (
-                    <Chip
-                      label="Obligatoire"
-                      size="small"
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 2,
+                      fontSize: "16px",
+                      fontWeight: "600",
+                      color: "#1e293b",
+                    }}
+                  >
+                    {question.label}
+                    {question.required && (
+                      <Chip
+                        label="Obligatoire"
+                        size="small"
+                        sx={{
+                          ml: 1,
+                          backgroundColor: "#fef2f2",
+                          color: "#dc2626",
+                          fontSize: "10px",
+                          height: "20px",
+                        }}
+                      />
+                    )}
+                  </Typography>
+                  {question.type === "texte" && (
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="Votre réponse"
+                      multiline
+                      rows={2}
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
                       sx={{
-                        ml: 1,
-                        backgroundColor: "#fef2f2",
-                        color: "#dc2626",
-                        fontSize: "10px",
-                        height: "20px",
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                          "&:hover": {
+                            "& .MuiOutlinedInput-notchedOutline": {
+                              borderColor: "#cbd5e1",
+                            },
+                          },
+                        },
                       }}
                     />
                   )}
-                </Typography>
-                {question.type === "texte" && (
-                  <TextField
-                    fullWidth
-                    variant="outlined"
-                    placeholder="Votre réponse"
-                    multiline
-                    rows={2}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: 2,
-                        backgroundColor: "#fff",
-                        "&:hover": {
-                          "& .MuiOutlinedInput-notchedOutline": {
-                            borderColor: "#cbd5e1",
-                          },
+                  {question.type === "nombre_entier" && (
+                    <TextField
+                      fullWidth
+                      type="number"
+                      variant="outlined"
+                      placeholder="Entrez un nombre entier"
+                      inputProps={{ step: 1 }}
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
                         },
-                      },
-                    }}
-                  />
-                )}
-                {question.type === "nombre_entier" && (
-                  <TextField
-                    fullWidth
-                    type="number"
-                    variant="outlined"
-                    placeholder="Entrez un nombre entier"
-                    inputProps={{ step: 1 }}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: 2,
-                        backgroundColor: "#fff",
-                      },
-                    }}
-                  />
-                )}
-                {question.type === "nombre_decimal" && (
-                  <TextField
-                    fullWidth
-                    type="number"
-                    variant="outlined"
-                    placeholder="Entrez un nombre décimal"
-                    inputProps={{ step: "any" }}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: 2,
-                        backgroundColor: "#fff",
-                      },
-                    }}
-                  />
-                )}
-                {question.type === "binaire" && (
-                  <RadioGroup>
-                    {(question.options.length === 2 ? question.options : ["Oui", "Non"]).map(
-                      (opt, idx) => (
+                      }}
+                    />
+                  )}
+                  {question.type === "nombre_decimal" && (
+                    <TextField
+                      fullWidth
+                      type="number"
+                      variant="outlined"
+                      placeholder="Entrez un nombre décimal"
+                      inputProps={{ step: "any" }}
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
+                  {question.type === "binaire" && (
+                    <RadioGroup
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                    >
+                      {(question.options.length === 2 ? question.options : ["Oui", "Non"]).map(
+                        (opt, idx) => (
+                          <FormControlLabel key={idx} value={opt} control={<Radio />} label={opt} />
+                        )
+                      )}
+                    </RadioGroup>
+                  )}
+                  {question.type === "choix_unique" && (
+                    <RadioGroup
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                    >
+                      {question.options.map((opt, idx) => (
+                        <FormControlLabel key={idx} value={opt} control={<Radio />} label={opt} />
+                      ))}
+                    </RadioGroup>
+                  )}
+                  {question.type === "choix_multiple" && (
+                    <FormGroup>
+                      {question.options.map((opt, idx) => (
                         <FormControlLabel
                           key={idx}
-                          value={opt}
-                          control={<Radio />}
+                          control={
+                            <Checkbox
+                              checked={(formValues[question.label] || []).includes(opt)}
+                              onChange={(e) => {
+                                const currentValues = formValues[question.label] || [];
+                                const newValues = e.target.checked
+                                  ? [...currentValues, opt]
+                                  : currentValues.filter((v) => v !== opt);
+                                updateFormValue(question.label, newValues);
+                              }}
+                            />
+                          }
                           label={opt}
-                          sx={{
-                            "& .MuiFormControlLabel-label": {
-                              fontSize: "14px",
-                              color: "#475569",
-                            },
-                          }}
                         />
-                      )
-                    )}
-                  </RadioGroup>
-                )}
-                {question.type === "choix_unique" && (
-                  <RadioGroup>
-                    {question.options.map((opt, idx) => (
-                      <FormControlLabel
-                        key={idx}
-                        value={opt}
-                        control={<Radio />}
-                        label={opt}
-                        sx={{
-                          "& .MuiFormControlLabel-label": {
-                            fontSize: "14px",
-                            color: "#475569",
-                          },
-                        }}
-                      />
-                    ))}
-                  </RadioGroup>
-                )}
-                {question.type === "choix_multiple" && (
-                  <FormGroup>
-                    {question.options.map((opt, idx) => (
-                      <FormControlLabel
-                        key={idx}
-                        control={<Checkbox />}
-                        label={opt}
-                        sx={{
-                          "& .MuiFormControlLabel-label": {
-                            fontSize: "14px",
-                            color: "#475569",
-                          },
-                        }}
-                      />
-                    ))}
-                  </FormGroup>
-                )}
-                {question.type === "datetime" && (
-                  <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
-                    <DateTimePicker
-                      label="Sélectionnez une date et heure"
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-                          variant: "outlined",
-                          sx: {
-                            "& .MuiOutlinedInput-root": {
-                              borderRadius: 2,
-                              backgroundColor: "#fff",
-                            },
-                          },
+                      ))}
+                    </FormGroup>
+                  )}
+                  {question.type === "liste_deroulante" && (
+                    <Select
+                      fullWidth
+                      displayEmpty
+                      variant="outlined"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
                         },
-                        actionBar: {
-                          actions: ["accept", "cancel", "clear"],
+                      }}
+                    >
+                      <MenuItem value="" disabled>
+                        Sélectionner une option
+                      </MenuItem>
+                      {question.options.map((opt, idx) => (
+                        <MenuItem key={idx} value={opt}>
+                          {opt}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                  {question.type === "media" && (
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      fullWidth
+                      sx={{ justifyContent: "flex-start", my: 1 }}
+                    >
+                      Ajouter un fichier
+                      <input
+                        type="file"
+                        hidden
+                        onChange={(e) => updateFormValue(question.label, e.target.files[0])}
+                      />
+                    </Button>
+                  )}
+                  {question.type === "datetime" && (
+                    <TextField
+                      fullWidth
+                      type="datetime-local"
+                      variant="outlined"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
                         },
                       }}
                     />
-                  </LocalizationProvider>
-                )}
-                {question.type === "media" && (
-                  <Box sx={{ mt: 2 }}>
-                    <input
-                      accept="image/*,video/*"
-                      style={{ display: "none" }}
-                      id={`media-upload-${question.id}`}
-                      type="file"
-                    />
-                    <label htmlFor={`media-upload-${question.id}`}>
-                      <Button
-                        variant="outlined"
-                        component="span"
-                        startIcon={<AddPhotoAlternateIcon />}
-                        fullWidth
-                        sx={{
+                  )}
+                  {question.type === "date" && (
+                    <TextField
+                      fullWidth
+                      type="date"
+                      variant="outlined"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
                           borderRadius: 2,
-                          borderColor: "#cbd5e1",
-                          color: "#64748b",
-                          "&:hover": {
-                            borderColor: "#94a3b8",
-                            backgroundColor: "#f8fafc",
-                          },
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
+                  {question.type === "heure" && (
+                    <TextField
+                      fullWidth
+                      type="time"
+                      variant="outlined"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
+                  {question.type === "position" && (
+                    <Box
+                      sx={{ p: 2, border: "1px dashed #ccc", borderRadius: 2, textAlign: "center" }}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Carte interactive pour sélectionner la position
+                      </Typography>
+                    </Box>
+                  )}
+                  {question.type === "audio" && (
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      fullWidth
+                      sx={{ justifyContent: "flex-start", my: 1 }}
+                    >
+                      Enregistrer un audio
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        hidden
+                        onChange={(e) => updateFormValue(question.label, e.target.files[0])}
+                      />
+                    </Button>
+                  )}
+                  {question.type === "video" && (
+                    <Button
+                      variant="outlined"
+                      component="label"
+                      fullWidth
+                      sx={{ justifyContent: "flex-start", my: 1 }}
+                    >
+                      Enregistrer une vidéo
+                      <input
+                        type="file"
+                        accept="video/*"
+                        hidden
+                        onChange={(e) => updateFormValue(question.label, e.target.files[0])}
+                      />
+                    </Button>
+                  )}
+                  {question.type === "ligne" && (
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="Entrez une valeur"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
+                  {question.type === "note" && (
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      multiline
+                      minRows={3}
+                      placeholder="Votre note"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
+                  {question.type === "qrcode" && (
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="Scanner ou saisir le code QR/barre"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
+                  {question.type === "zone" && (
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      multiline
+                      minRows={3}
+                      placeholder="Décrivez la zone"
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
+                  {question.type === "tableau" && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Tableau de questions
+                      </Typography>
+                      <Box
+                        sx={{
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 2,
+                          overflow: "hidden",
+                          backgroundColor: "#fff",
                         }}
                       >
-                        Ajouter un média
-                      </Button>
-                    </label>
-                  </Box>
-                )}
-                {question.type === "position" && (
-                  <PositionPreview
-                    value={
-                      typeof responses[question.id] === "object" && responses[question.id] !== null
-                        ? responses[question.id]
-                        : {}
-                    }
-                  />
-                )}
-                {question.type === "tableau" && (
-                  <Box sx={{ mt: 2 }}>
+                        {/* En-têtes des colonnes */}
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: `200px repeat(${
+                              (question.columns || ["Colonne 1", "Colonne 2"]).length
+                            }, 1fr)`,
+                            borderBottom: "2px solid #e2e8f0",
+                          }}
+                        >
+                          {/* Cellule vide en haut à gauche */}
+                          <Box
+                            sx={{
+                              p: 2,
+                              backgroundColor: "#f8fafc",
+                              borderRight: "1px solid #e2e8f0",
+                              fontWeight: "600",
+                              color: "#374151",
+                              fontSize: 14,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            &nbsp;
+                          </Box>
+                          {/* En-têtes des colonnes */}
+                          {(question.columns || ["Colonne 1", "Colonne 2"]).map((col, idx) => (
+                            <Box
+                              key={idx}
+                              sx={{
+                                p: 2,
+                                backgroundColor: "#f8fafc",
+                                borderRight:
+                                  idx < (question.columns || []).length - 1
+                                    ? "1px solid #e2e8f0"
+                                    : "none",
+                                fontWeight: "600",
+                                color: "#374151",
+                                fontSize: 14,
+                                textAlign: "center",
+                              }}
+                            >
+                              {col}
+                            </Box>
+                          ))}
+                        </Box>
+
+                        {/* Lignes du tableau */}
+                        {(question.rows || ["Ligne 1"]).map((row, rowIdx) => (
+                          <Box
+                            key={rowIdx}
+                            sx={{
+                              display: "grid",
+                              gridTemplateColumns: `200px repeat(${
+                                (question.columns || ["Colonne 1", "Colonne 2"]).length
+                              }, 1fr)`,
+                              borderBottom:
+                                rowIdx < (question.rows || []).length - 1
+                                  ? "1px solid #e2e8f0"
+                                  : "none",
+                            }}
+                          >
+                            {/* Libellé de la ligne */}
+                            <Box
+                              sx={{
+                                p: 2,
+                                backgroundColor: "#f8fafc",
+                                borderRight: "1px solid #e2e8f0",
+                                fontWeight: "600",
+                                color: "#374151",
+                                fontSize: 14,
+                                display: "flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              {row}
+                            </Box>
+
+                            {/* Cellules de données */}
+                            {(question.columns || ["Colonne 1", "Colonne 2"]).map((col, colIdx) => (
+                              <Box
+                                key={colIdx}
+                                sx={{
+                                  p: 2,
+                                  borderRight:
+                                    colIdx < (question.columns || []).length - 1
+                                      ? "1px solid #e2e8f0"
+                                      : "none",
+                                  backgroundColor: "#fff",
+                                  minHeight: 60,
+                                  display: "flex",
+                                  alignItems: "center",
+                                }}
+                              >
+                                <TextField
+                                  size="small"
+                                  variant="outlined"
+                                  placeholder="Réponse"
+                                  sx={{ width: "100%" }}
+                                />
+                              </Box>
+                            ))}
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                  {question.type === "classement" && (
                     <TextField
                       fullWidth
                       variant="outlined"
                       placeholder="Entrez une réponse (séparée par des virgules)"
                       multiline
                       rows={2}
-                      value={responses[question.id] || ""}
-                      onChange={(e) =>
-                        setResponses((prev) => ({ ...prev, [question.id]: e.target.value }))
-                      }
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: 2,
@@ -1103,35 +1433,18 @@ export default function FormHeader() {
                         },
                       }}
                     />
-                  </Box>
-                )}
-                {question.type === "classement" && (
-                  <Box sx={{ mt: 2 }}>
-                    <TextField
-                      fullWidth
-                      variant="outlined"
-                      placeholder="Entrez une réponse (séparée par des virgules)"
-                      multiline
-                      rows={2}
-                      value={responses[question.id] || ""}
-                      onChange={(e) =>
-                        setResponses((prev) => ({ ...prev, [question.id]: e.target.value }))
-                      }
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: 2,
-                          backgroundColor: "#fff",
-                        },
-                      }}
-                    />
-                  </Box>
-                )}
-              </Box>
-            ))}
+                  )}
+                </Box>
+              );
+            })}
           </Box>
         </Paper>
       </Box>
     );
+  };
+
+  const renderPreview = () => {
+    return <FormPreview />;
   };
 
   if (loading) {
