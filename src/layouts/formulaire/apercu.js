@@ -20,6 +20,7 @@ import {
   Snackbar,
   CircularProgress,
   Alert,
+  Chip,
 } from "@mui/material";
 import { DatePicker, TimePicker, DateTimePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -1334,121 +1335,278 @@ const Apercu = () => {
       <Box sx={{ maxWidth: 800, mx: "auto", mt: 4, mb: 4 }}>
         {formData && (
           <Paper
-            elevation={3}
+            elevation={0}
             sx={{
-              p: 4,
-              borderRadius: 2,
-              backgroundColor: "#fff",
+              p: 0,
+              borderRadius: 0,
+              backgroundColor: "#ffffff",
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+              overflow: "hidden",
             }}
           >
-            {/* En-tête du formulaire */}
-            {formData.image && (
-              <Box sx={{ mb: 3, textAlign: "center" }}>
-                <img
-                  src={formData.image}
-                  alt="form"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "200px",
-                    objectFit: "contain",
-                  }}
-                />
-              </Box>
-            )}
-
-            <Typography variant="h4" sx={{ mb: 2, fontWeight: "bold" }}>
-              {formData.title}
-            </Typography>
-
-            <Typography variant="body1" sx={{ mb: 4, color: "#666" }}>
-              {formData.description}
-            </Typography>
-
-            {/* Questions */}
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {formData.questions.map((question, index) => {
-                // Vérifier si la question doit être affichée selon la logique d'affichage
-                const isVisible = shouldShowQuestion(question, formData, formValues);
-
-                if (!isVisible) return null;
-
-                return (
-                  <Box key={question.id}>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      {question.label}
-                      {question.required && <span style={{ color: "red", marginLeft: 4 }}>*</span>}
-                    </Typography>
-                    {renderQuestion(question)}
-                  </Box>
-                );
-              })}
-            </Box>
-
-            {/* Informations utilisateur */}
-            <Box sx={{ mt: 4, mb: 3, p: 3, bgcolor: "#f8f9fa", borderRadius: 2 }}>
-              <Typography variant="h6" sx={{ mb: 2, color: "#333" }}>
-                Vos informations
-              </Typography>
-              <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-                <TextField
-                  label="Email (optionnel)"
-                  value={userEmail}
-                  onChange={(e) => setUserEmail(e.target.value)}
-                  type="email"
-                  sx={{ minWidth: 250 }}
-                  size="small"
-                />
-                <TextField
-                  label="Latitude (optionnel)"
-                  value={userLocation.latitude}
-                  onChange={(e) =>
-                    setUserLocation((prev) => ({ ...prev, latitude: e.target.value }))
-                  }
-                  type="number"
-                  sx={{ minWidth: 150 }}
-                  size="small"
-                />
-                <TextField
-                  label="Longitude (optionnel)"
-                  value={userLocation.longitude}
-                  onChange={(e) =>
-                    setUserLocation((prev) => ({ ...prev, longitude: e.target.value }))
-                  }
-                  type="number"
-                  sx={{ minWidth: 150 }}
-                  size="small"
-                />
-              </Box>
-            </Box>
-
+            {/* Header du formulaire */}
             <Box
-              sx={{ mt: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              sx={{
+                background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
+                p: 4,
+                color: "#ffffff",
+                position: "relative",
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background:
+                    'url(\'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="10" cy="60" r="0.5" fill="rgba(255,255,255,0.05)"/><circle cx="90" cy="40" r="0.5" fill="rgba(255,255,255,0.05)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>\')',
+                  opacity: 0.3,
+                },
+              }}
             >
-              <Typography variant="body2" color="text.secondary">
-                {formData.questions.filter((q) => q.required).length} champ(s) obligatoire(s)
-              </Typography>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleSubmit}
-                disabled={submitting}
+              {formData.image && (
+                <Box sx={{ mb: 3, textAlign: "center" }}>
+                  <img
+                    src={formData.image}
+                    alt="form"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "120px",
+                      objectFit: "contain",
+                      borderRadius: 12,
+                      border: "3px solid rgba(255,255,255,0.2)",
+                    }}
+                  />
+                </Box>
+              )}
+              <Typography
+                variant="h3"
                 sx={{
-                  backgroundColor: "#77af0a",
-                  "&:hover": {
-                    backgroundColor: "#689c09",
-                  },
-                  minWidth: 120,
+                  mb: 2,
+                  fontWeight: "800",
+                  fontSize: "32px",
+                  textAlign: "center",
+                  textShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  letterSpacing: "-0.5px",
                 }}
               >
-                {submitting ? (
-                  <>
-                    <CircularProgress size={20} sx={{ color: "#fff", mr: 1 }} />
-                    Envoi...
-                  </>
-                ) : (
-                  "Envoyer les réponses"
-                )}
-              </Button>
+                {formData.title}
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: "18px",
+                  lineHeight: 1.6,
+                  textAlign: "center",
+                  opacity: 0.9,
+                  maxWidth: "600px",
+                  mx: "auto",
+                }}
+              >
+                {formData.description}
+              </Typography>
+            </Box>
+
+            {/* Contenu du formulaire */}
+            <Box sx={{ p: 6, backgroundColor: "#ffffff" }}>
+              {/* Questions */}
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {formData.questions.map((question, index) => {
+                  // Vérifier si la question doit être affichée selon la logique d'affichage
+                  const isVisible = shouldShowQuestion(question, formData, formValues);
+
+                  if (!isVisible) return null;
+
+                  return (
+                    <Box
+                      key={question.id}
+                      sx={{
+                        position: "relative",
+                        p: 4,
+                        borderRadius: 3,
+                        border: "2px solid #f8fafc",
+                        backgroundColor: "#ffffff",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          borderColor: "#e2e8f0",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+                          transform: "translateY(-1px)",
+                        },
+                        "&::before": {
+                          content: `"${index + 1}"`,
+                          position: "absolute",
+                          top: -12,
+                          left: 20,
+                          backgroundColor: "#77af0a",
+                          color: "#ffffff",
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "12px",
+                          fontWeight: "bold",
+                          zIndex: 1,
+                        },
+                      }}
+                    >
+                      <Typography
+                        variant="h5"
+                        sx={{
+                          mb: 3,
+                          fontSize: "20px",
+                          fontWeight: "700",
+                          color: "#1e293b",
+                          lineHeight: 1.3,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                        }}
+                      >
+                        {question.label}
+                        {question.required && (
+                          <Chip
+                            label="Obligatoire"
+                            size="small"
+                            sx={{
+                              backgroundColor: "#fef2f2",
+                              color: "#dc2626",
+                              fontSize: "11px",
+                              height: "24px",
+                              fontWeight: "600",
+                              border: "1px solid #fecaca",
+                            }}
+                          />
+                        )}
+                      </Typography>
+                      {renderQuestion(question)}
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              {/* Informations utilisateur */}
+              <Box
+                sx={{
+                  mt: 6,
+                  p: 4,
+                  backgroundColor: "#f8fafc",
+                  borderRadius: 3,
+                  border: "2px solid #e2e8f0",
+                }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{
+                    mb: 3,
+                    color: "#1e293b",
+                    fontWeight: "700",
+                    fontSize: "18px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  📋 Vos informations
+                </Typography>
+                <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                  <TextField
+                    label="Email (optionnel)"
+                    value={userEmail}
+                    onChange={(e) => setUserEmail(e.target.value)}
+                    type="email"
+                    sx={{ minWidth: 250, flex: 1 }}
+                    size="small"
+                    variant="outlined"
+                  />
+                  <TextField
+                    label="Latitude (optionnel)"
+                    value={userLocation.latitude}
+                    onChange={(e) =>
+                      setUserLocation((prev) => ({ ...prev, latitude: e.target.value }))
+                    }
+                    type="number"
+                    sx={{ minWidth: 150 }}
+                    size="small"
+                    variant="outlined"
+                  />
+                  <TextField
+                    label="Longitude (optionnel)"
+                    value={userLocation.longitude}
+                    onChange={(e) =>
+                      setUserLocation((prev) => ({ ...prev, longitude: e.target.value }))
+                    }
+                    type="number"
+                    sx={{ minWidth: 150 }}
+                    size="small"
+                    variant="outlined"
+                  />
+                </Box>
+              </Box>
+
+              {/* Footer avec bouton d'envoi */}
+              <Box
+                sx={{
+                  mt: 6,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  p: 3,
+                  backgroundColor: "#f8fafc",
+                  borderRadius: 3,
+                  border: "2px solid #e2e8f0",
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "#64748b",
+                    fontWeight: "500",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  📝 {formData.questions.filter((q) => q.required).length} champ(s) obligatoire(s)
+                </Typography>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  sx={{
+                    background: "linear-gradient(135deg, #77af0a 0%, #52734d 100%)",
+                    borderRadius: "12px",
+                    px: 4,
+                    py: 1.5,
+                    fontWeight: "600",
+                    fontSize: "16px",
+                    minWidth: 180,
+                    boxShadow: "0 4px 12px rgba(119, 175, 10, 0.3)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #6a991f 0%, #4a643c 100%)",
+                      boxShadow: "0 6px 20px rgba(119, 175, 10, 0.4)",
+                      transform: "translateY(-1px)",
+                    },
+                    "&:disabled": {
+                      background: "#e2e8f0",
+                      color: "#94a3b8",
+                    },
+                  }}
+                >
+                  {submitting ? (
+                    <>
+                      <CircularProgress size={20} sx={{ color: "#fff", mr: 1 }} />
+                      Envoi...
+                    </>
+                  ) : (
+                    "📤 Envoyer les réponses"
+                  )}
+                </Button>
+              </Box>
             </Box>
           </Paper>
         )}
