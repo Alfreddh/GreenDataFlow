@@ -1389,6 +1389,7 @@ const Apercu = () => {
                   textAlign: "center",
                   textShadow: "0 2px 4px rgba(0,0,0,0.1)",
                   letterSpacing: "-0.5px",
+                  color: "#ffffff",
                 }}
               >
                 {formData.title}
@@ -1586,6 +1587,7 @@ const Apercu = () => {
                     minWidth: 180,
                     boxShadow: "0 4px 12px rgba(119, 175, 10, 0.3)",
                     transition: "all 0.3s ease",
+                    color: "#ffffff",
                     "&:hover": {
                       background: "linear-gradient(135deg, #6a991f 0%, #4a643c 100%)",
                       boxShadow: "0 6px 20px rgba(119, 175, 10, 0.4)",

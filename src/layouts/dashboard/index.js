@@ -15,9 +15,24 @@ Coded by www.creative-tim.com
 
 // @mui material components
 import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import Box from "@mui/material/Box";
+import Avatar from "@mui/material/Avatar";
+import Chip from "@mui/material/Chip";
+import Icon from "@mui/material/Icon";
+import Paper from "@mui/material/Paper";
+import Tooltip from "@mui/material/Tooltip";
+import Fade from "@mui/material/Fade";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import CircularProgress from "@mui/material/CircularProgress";
+import { Chart, ArcElement, Tooltip as ChartTooltip, Legend } from "chart.js";
 
 // Material Dashboard 2 React components
 import MDBox from "components/MDBox";
+import MDTypography from "components/MDTypography";
 
 // Material Dashboard 2 React example components
 import DashboardLayout from "examples/LayoutContainers/DashboardLayout";
@@ -26,24 +41,12 @@ import Footer from "examples/Footer";
 import ComplexStatisticsCard from "examples/Cards/StatisticsCards/ComplexStatisticsCard";
 import ReportsLineChart from "examples/Charts/LineCharts/ReportsLineChart";
 import ReportsBarChart from "examples/Charts/BarCharts/ReportsBarChart";
-import Card from "@mui/material/Card";
-import MDTypography from "components/MDTypography";
-import Chip from "@mui/material/Chip";
-import Icon from "@mui/material/Icon";
-import Box from "@mui/material/Box";
 import DataTable from "examples/Tables/DataTable";
-import PropTypes from "prop-types";
-import { useEffect, useState, useRef } from "react";
+
+// React hooks
+import React, { useEffect, useState, useRef } from "react";
 import { formService } from "../../services/api";
-import CircularProgress from "@mui/material/CircularProgress";
-import { Chart, ArcElement, Tooltip as ChartTooltip, Legend } from "chart.js";
-import Paper from "@mui/material/Paper";
-import Tooltip from "@mui/material/Tooltip";
-import Fade from "@mui/material/Fade";
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
+
 Chart.register(ArcElement, ChartTooltip, Legend);
 
 function Dashboard() {
@@ -52,7 +55,7 @@ function Dashboard() {
   const [formResponses, setFormResponses] = useState([]);
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [loadingForms, setLoadingForms] = useState(true);
-
+  const [selectedEnqueteur, setSelectedEnqueteur] = useState("all");
   // Cache global avec localStorage pour persister entre les navigations
   const CACHE_KEY_FORMS = "dashboard_forms_cache";
   const CACHE_KEY_RESPONSES = "dashboard_responses_cache";
@@ -219,45 +222,75 @@ function Dashboard() {
     fetchRealResponses();
   }, [selectedFormId]);
 
-  // Colonnes dynamiques selon les réponses (affiche les 5 premiers champs)
-  const responseColumns = [
-    { Header: "ID", accessor: "id", align: "left" },
-    { Header: "Créé par", accessor: "created_by", align: "left" },
-    { Header: "Date de création", accessor: "created_at", align: "left" },
-  ];
+  // === ANALYSE PAR ENQUÊTEUR ===
+  // Extraire tous les enquêteurs uniques
+  const getAllEnqueteurs = () => {
+    const enqueteurs = new Set();
+    formResponses.forEach((resp) => {
+      const email = resp.response_form?.created_by || "Anonyme";
+      enqueteurs.add(email);
+    });
+    return Array.from(enqueteurs).sort();
+  };
 
-  // Lignes du tableau
-  const responseRows = formResponses.map((resp) => {
-    const row = {
-      id: resp.response_form?.id || resp.id,
-      created_by: resp.response_form?.created_by || "Anonyme",
-      created_at: resp.response_form?.created_at
-        ? new Date(resp.response_form.created_at).toLocaleString()
-        : "Date inconnue",
-    };
+  const enqueteurs = getAllEnqueteurs();
 
-    // Ajouter les réponses aux paramètres (max 2 pour éviter l'encombrement)
-    if (Array.isArray(resp.parameter_responses)) {
-      resp.parameter_responses.slice(0, 2).forEach((pr) => {
-        const key = pr.parameter_libelle || `Paramètre ${pr.id}`;
-        row[key] = (
-          <MDTypography fontSize={13} color="text.secondary">
-            {pr.value || "Aucune valeur"}
-          </MDTypography>
-        );
-      });
-    }
+  // Filtrer les réponses par enquêteur
+  const getFilteredResponses = () => {
+    if (selectedEnqueteur === "all") return formResponses;
+    return formResponses.filter(
+      (resp) => (resp.response_form?.created_by || "Anonyme") === selectedEnqueteur
+    );
+  };
 
-    return row;
-  });
+  const filteredResponses = getFilteredResponses();
 
-  // Statistiques dynamiques à partir des vraies réponses
-  const totalResponses = formResponses.length;
+  // Statistiques par enquêteur
+  const getEnqueteurStats = () => {
+    const stats = {};
+    enqueteurs.forEach((enqueteur) => {
+      const responses = formResponses.filter(
+        (resp) => (resp.response_form?.created_by || "Anonyme") === enqueteur
+      );
+
+      // Réponses aujourd'hui
+      const today = new Date().toLocaleDateString();
+      const todayCount = responses.filter((r) => {
+        const d = r.response_form?.created_at
+          ? new Date(r.response_form.created_at).toLocaleDateString()
+          : "";
+        return d === today;
+      }).length;
+
+      // Dernière activité
+      const lastActivity =
+        responses.length > 0
+          ? responses.reduce((latest, r) => {
+              const d = new Date(r.response_form?.created_at || 0);
+              return d > latest ? d : latest;
+            }, new Date(0))
+          : null;
+
+      stats[enqueteur] = {
+        total: responses.length,
+        today: todayCount,
+        lastActivity: lastActivity ? lastActivity.toLocaleString() : "Aucune",
+        efficiency: responses.length > 0 ? Math.round((todayCount / responses.length) * 100) : 0,
+      };
+    });
+    return stats;
+  };
+
+  const enqueteurStats = getEnqueteurStats();
+
+  // === STATISTIQUES GLOBALES ===
+  const totalResponses = filteredResponses.length;
+  const totalEnqueteurs = enqueteurs.length;
 
   // Trouver la dernière soumission
   const lastSubmission =
-    formResponses.length > 0
-      ? formResponses
+    filteredResponses.length > 0
+      ? filteredResponses
           .reduce((latest, r) => {
             const d = new Date(r.response_form?.created_at || 0);
             return d > latest ? d : latest;
@@ -266,7 +299,7 @@ function Dashboard() {
       : "-";
 
   // Extraire toutes les réponses aux paramètres pour l'analyse
-  const allParameterResponses = formResponses.flatMap((resp) =>
+  const allParameterResponses = filteredResponses.flatMap((resp) =>
     Array.isArray(resp.parameter_responses) ? resp.parameter_responses : []
   );
 
@@ -343,7 +376,7 @@ function Dashboard() {
 
   // Statistique : nombre de réponses aujourd'hui
   const today = new Date().toLocaleDateString();
-  const todayCount = formResponses.filter((r) => {
+  const todayCount = filteredResponses.filter((r) => {
     const d = r.response_form?.created_at
       ? new Date(r.response_form.created_at).toLocaleDateString()
       : "";
@@ -352,7 +385,7 @@ function Dashboard() {
 
   // Données pour le line chart (évolution des réponses par jour)
   const dateCounts = {};
-  formResponses.forEach((r) => {
+  filteredResponses.forEach((r) => {
     const d = r.response_form?.created_at
       ? new Date(r.response_form.created_at).toLocaleDateString()
       : "-";
@@ -365,68 +398,166 @@ function Dashboard() {
   const barLabels = choiceOptions;
   const barData = choiceOptions.map((opt) => choiceCounts[opt] || 0);
 
-  // Données pour le pie chart (répartition sur la question à choix)
-  const pieData = {
-    labels: barLabels,
-    datasets: [
-      {
-        data: barData,
-        backgroundColor: [
-          "#77af0a",
-          "#ffa726",
-          "#42a5f5",
-          "#ab47bc",
-          "#ef5350",
-          "#26a69a",
-          "#ff7043",
-        ],
-      },
-    ],
-  };
+  // Colonnes pour le tableau des enquêteurs
+  const enqueteurColumns = [
+    { Header: "Enquêteur", accessor: "enqueteur", align: "left" },
+    { Header: "Total Réponses", accessor: "total", align: "center" },
+    { Header: "Aujourd'hui", accessor: "today", align: "center" },
+    { Header: "Efficacité", accessor: "efficiency", align: "center" },
+    { Header: "Dernière Activité", accessor: "lastActivity", align: "left" },
+  ];
+
+  const enqueteurRows = Object.entries(enqueteurStats).map(([enqueteur, stats]) => ({
+    enqueteur: (
+      <Box display="flex" alignItems="center" gap={2}>
+        <Avatar
+          sx={{
+            bgcolor: "primary.main",
+            width: 32,
+            height: 32,
+            fontSize: "14px",
+          }}
+        >
+          {enqueteur.charAt(0).toUpperCase()}
+        </Avatar>
+        <MDTypography variant="body2" fontWeight="medium">
+          {enqueteur}
+        </MDTypography>
+      </Box>
+    ),
+    total: <Chip label={stats.total} color="primary" size="small" sx={{ fontWeight: "bold" }} />,
+    today: (
+      <Chip
+        label={stats.today}
+        color={stats.today > 0 ? "success" : "default"}
+        size="small"
+        variant={stats.today > 0 ? "filled" : "outlined"}
+      />
+    ),
+    efficiency: (
+      <Box display="flex" alignItems="center" gap={1}>
+        <CircularProgress
+          variant="determinate"
+          value={stats.efficiency}
+          size={24}
+          sx={{ color: stats.efficiency > 50 ? "success.main" : "warning.main" }}
+        />
+        <MDTypography variant="caption" fontWeight="medium">
+          {stats.efficiency}%
+        </MDTypography>
+      </Box>
+    ),
+    lastActivity: (
+      <MDTypography variant="body2" color="text.secondary">
+        {stats.lastActivity}
+      </MDTypography>
+    ),
+  }));
+
+  // Colonnes pour le tableau des réponses
+  const responseColumns = [
+    { Header: "ID", accessor: "id", align: "left" },
+    { Header: "Enquêteur", accessor: "enqueteur", align: "left" },
+    { Header: "Date de création", accessor: "created_at", align: "left" },
+  ];
+
+  const responseRows = filteredResponses.map((resp) => {
+    const row = {
+      id: resp.response_form?.id || resp.id,
+      enqueteur: (
+        <Box display="flex" alignItems="center" gap={1}>
+          <Avatar
+            sx={{
+              bgcolor: "primary.main",
+              width: 24,
+              height: 24,
+              fontSize: "12px",
+            }}
+          >
+            {(resp.response_form?.created_by || "A").charAt(0).toUpperCase()}
+          </Avatar>
+          <MDTypography variant="body2" fontWeight="medium">
+            {resp.response_form?.created_by || "Anonyme"}
+          </MDTypography>
+        </Box>
+      ),
+      created_at: resp.response_form?.created_at
+        ? new Date(resp.response_form.created_at).toLocaleString()
+        : "Date inconnue",
+    };
+
+    // Ajouter les réponses aux paramètres (max 2 pour éviter l'encombrement)
+    if (Array.isArray(resp.parameter_responses)) {
+      resp.parameter_responses.slice(0, 2).forEach((pr) => {
+        const key = pr.parameter_libelle || `Paramètre ${pr.id}`;
+        row[key] = (
+          <MDTypography fontSize={13} color="text.secondary">
+            {pr.value || "Aucune valeur"}
+          </MDTypography>
+        );
+      });
+    }
+
+    return row;
+  });
 
   return (
     <DashboardLayout>
       <DashboardNavbar />
+
       {/* Styles CSS globaux pour les animations */}
       <style>
         {`
-          @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
+          @keyframes slideInLeft {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
           }
           
-          @keyframes slideIn {
+          @keyframes slideInUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+          
+          @keyframes fadeInUp {
             from { transform: translateY(20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
           }
           
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-          
           @keyframes scaleIn {
-            from { transform: scale(0.95); opacity: 0; }
+            from { transform: scale(0.9); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
           }
           
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+          }
+          
+          @keyframes glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(102, 126, 234, 0.6); }
+          }
+          
           .dashboard-card {
-            animation: slideIn 0.6s ease-out;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: slideInUp 0.8s ease-out;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
           }
           
           .dashboard-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
           }
           
           .stats-card {
-            animation: scaleIn 0.5s ease-out;
+            animation: scaleIn 0.6s ease-out;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 16px;
+            border-radius: 24px;
             overflow: hidden;
             position: relative;
+            border: 1px solid rgba(255,255,255,0.1);
           }
           
           .stats-card::before {
@@ -438,258 +569,402 @@ function Dashboard() {
             bottom: 0;
             background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%);
             transform: translateX(-100%);
-            transition: transform 0.6s;
+            transition: transform 0.8s;
           }
           
           .stats-card:hover::before {
             transform: translateX(100%);
           }
           
+          .stats-card:hover {
+            animation: glow 2s infinite;
+          }
+          
           .chart-container {
-            animation: fadeIn 0.8s ease-out;
-            border-radius: 16px;
+            animation: fadeInUp 1s ease-out;
+            border-radius: 24px;
             overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
           }
           
           .table-container {
-            animation: slideIn 0.7s ease-out;
-            border-radius: 16px;
+            animation: slideInUp 0.9s ease-out;
+            border-radius: 24px;
             overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+          }
+          
+          .selection-card {
+            animation: slideInUp 0.7s ease-out;
+            border-radius: 24px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.7) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2);
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+          }
+          
+          .floating-icon {
+            animation: float 3s ease-in-out infinite;
+          }
+          
+          .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
           }
         `}
       </style>
 
       {/* Sélection moderne de formulaire */}
-      <MDBox pt={2} pb={2} mb={4}>
-        <MDBox mb={3} px={3}>
-          <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
-            🎯 Sélectionnez un formulaire à analyser
-          </MDTypography>
-          <MDTypography variant="body2" color="text.secondary">
-            Choisissez un formulaire pour voir ses statistiques et réponses en temps réel
-          </MDTypography>
-        </MDBox>
-
-        {loadingForms ? (
-          <Paper
-            elevation={0}
-            sx={{
-              p: 4,
-              textAlign: "center",
-              background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
-              borderRadius: 3,
-              border: "2px dashed #ccc",
-              animation: "pulse 2s infinite",
-              mx: 3,
-            }}
-          >
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-              }}
-            >
-              <CircularProgress size={40} sx={{ color: "#77af0a" }} />
-              <MDTypography variant="h6" color="text.secondary">
-                Chargement des formulaires...
-              </MDTypography>
-              <MDTypography variant="body2" color="text.secondary">
-                Veuillez patienter pendant que nous récupérons vos données
-              </MDTypography>
-            </Box>
-          </Paper>
-        ) : (
-          <Box sx={{ width: "100%", px: 3 }}>
-            <FormControl fullWidth>
-              <Select
-                value={selectedFormId}
-                onChange={(e) => setSelectedFormId(e.target.value)}
-                displayEmpty
-                placeholder="Choisir un formulaire"
+      <MDBox pt={2} pb={2} mb={2}>
+        <MDBox mb={2} px={3}>
+          <Box className="selection-card" p={4}>
+            <Box display="flex" alignItems="center" gap={3} mb={3}>
+              <Box
+                className="floating-icon"
                 sx={{
-                  background: "#fff",
-                  borderRadius: 3,
-                  minHeight: 56,
-                  fontSize: 16,
-                  fontWeight: 500,
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-                  border: "2px solid transparent",
-                  transition: "all 0.3s ease",
-                  "&:hover": {
-                    boxShadow: "0 6px 25px rgba(0,0,0,0.12)",
-                    transform: "translateY(-1px)",
-                  },
-                  "&.Mui-focused": {
-                    borderColor: "#77af0a",
-                    boxShadow: "0 8px 30px rgba(119, 175, 10, 0.15)",
-                  },
-                  "& .MuiSelect-icon": {
-                    color: "#77af0a",
-                    fontSize: 24,
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    border: "none",
-                  },
-                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                    border: "none",
-                  },
-                  "& .MuiSelect-select": {
-                    color: selectedFormId ? "#333" : "#999",
-                    fontWeight: selectedFormId ? 600 : 400,
-                  },
-                }}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      borderRadius: 3,
-                      boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-                      border: "1px solid #e0e0e0",
-                      maxHeight: 400,
-                    },
-                  },
+                  width: 60,
+                  height: 60,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 8px 25px rgba(102, 126, 234, 0.3)",
                 }}
               >
-                <MenuItem value="" disabled>
-                  Choisir un formulaire
-                </MenuItem>
-                {forms.map((form, index) => (
-                  <MenuItem
-                    key={form.id}
-                    value={form.id}
+                <Icon sx={{ fontSize: 28, color: "#fff" }}>analytics</Icon>
+              </Box>
+              <Box>
+                <MDTypography variant="h4" fontWeight="bold" color="primary" mb={1}>
+                  📊 Tableau de Bord Analytique
+                </MDTypography>
+                <MDTypography variant="body1" color="text.secondary" sx={{ fontSize: "16px" }}>
+                  Sélectionnez un formulaire pour analyser ses performances en temps réel
+                </MDTypography>
+              </Box>
+            </Box>
+
+            {loadingForms ? (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 4,
+                  textAlign: "center",
+                  background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+                  borderRadius: 3,
+                  border: "2px dashed #ccc",
+                  animation: "pulse 2s infinite",
+                  mx: 3,
+                }}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 2,
+                  }}
+                >
+                  <CircularProgress size={40} sx={{ color: "#77af0a" }} />
+                  <MDTypography variant="h6" color="text.secondary">
+                    Chargement des formulaires...
+                  </MDTypography>
+                  <MDTypography variant="body2" color="text.secondary">
+                    Veuillez patienter pendant que nous récupérons vos données
+                  </MDTypography>
+                </Box>
+              </Paper>
+            ) : (
+              <Box sx={{ width: "100%", px: 3 }}>
+                <FormControl fullWidth>
+                  <Select
+                    value={selectedFormId}
+                    onChange={(e) => setSelectedFormId(e.target.value)}
+                    displayEmpty
+                    placeholder="Choisir un formulaire"
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      py: 2,
-                      px: 3,
-                      fontSize: 15,
+                      background: "#fff",
+                      borderRadius: 3,
+                      minHeight: 56,
+                      fontSize: 16,
                       fontWeight: 500,
-                      borderBottom: "1px solid #f5f5f5",
-                      transition: "all 0.2s ease",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                      border: "2px solid transparent",
+                      transition: "all 0.3s ease",
                       "&:hover": {
-                        background: "linear-gradient(135deg, #f8f9fa 0%, #e8f5e8 100%)",
-                        transform: "translateX(4px)",
+                        boxShadow: "0 6px 25px rgba(0,0,0,0.12)",
+                        transform: "translateY(-1px)",
                       },
-                      "&.Mui-selected": {
-                        background: "linear-gradient(135deg, #77af0a 0%, #8bc34a 100%)",
-                        color: "#fff",
-                        fontWeight: 600,
-                        "&:hover": {
-                          background: "linear-gradient(135deg, #6a9a09 0%, #7cb342 100%)",
+                      "&.Mui-focused": {
+                        borderColor: "#77af0a",
+                        boxShadow: "0 8px 30px rgba(119, 175, 10, 0.15)",
+                      },
+                      "& .MuiSelect-icon": {
+                        color: "#77af0a",
+                        fontSize: 24,
+                      },
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        border: "none",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        border: "none",
+                      },
+                      "& .MuiSelect-select": {
+                        color: selectedFormId ? "#333" : "#999",
+                        fontWeight: selectedFormId ? 600 : 400,
+                      },
+                    }}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          borderRadius: 3,
+                          boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+                          border: "1px solid #e0e0e0",
+                          maxHeight: 400,
                         },
-                      },
-                      "&:last-child": {
-                        borderBottom: "none",
                       },
                     }}
                   >
-                    <Box
-                      sx={{
-                        fontSize: 20,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: 32,
-                        height: 32,
-                        borderRadius: "50%",
-                        background: "rgba(119, 175, 10, 0.1)",
-                        color: "#77af0a",
-                      }}
-                    >
-                      📋
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <MDTypography
-                        variant="body1"
+                    <MenuItem value="" disabled>
+                      Choisir un formulaire
+                    </MenuItem>
+                    {forms.map((form, index) => (
+                      <MenuItem
+                        key={form.id}
+                        value={form.id}
                         sx={{
-                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          py: 2,
+                          px: 3,
                           fontSize: 15,
-                          lineHeight: 1.3,
+                          fontWeight: 500,
+                          borderBottom: "1px solid #f5f5f5",
+                          transition: "all 0.2s ease",
+                          "&:hover": {
+                            background: "linear-gradient(135deg, #f8f9fa 0%, #e8f5e8 100%)",
+                            transform: "translateX(4px)",
+                          },
+                          "&.Mui-selected": {
+                            background: "linear-gradient(135deg, #77af0a 0%, #8bc34a 100%)",
+                            color: "#fff",
+                            fontWeight: 600,
+                            "&:hover": {
+                              background: "linear-gradient(135deg, #6a9a09 0%, #7cb342 100%)",
+                            },
+                          },
+                          "&:last-child": {
+                            borderBottom: "none",
+                          },
                         }}
                       >
-                        {form.title || `Formulaire ${index + 1}`}
-                      </MDTypography>
-                      <MDTypography
-                        variant="caption"
+                        <Box
+                          sx={{
+                            fontSize: 20,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            background: "rgba(119, 175, 10, 0.1)",
+                            color: "#77af0a",
+                          }}
+                        >
+                          📋
+                        </Box>
+                        <Box sx={{ flex: 1 }}>
+                          <MDTypography
+                            variant="body1"
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: 15,
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {form.title || `Formulaire ${index + 1}`}
+                          </MDTypography>
+                          <MDTypography
+                            variant="caption"
+                            sx={{
+                              color: "rgba(255,255,255,0.8)",
+                              fontSize: 12,
+                              display: "block",
+                              mt: 0.5,
+                            }}
+                          >
+                            {form.parameters?.length || 0} questions
+                          </MDTypography>
+                        </Box>
+                        {selectedFormId === form.id && (
+                          <Icon sx={{ fontSize: 20, color: "#fff" }}>check_circle</Icon>
+                        )}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                {/* Indicateur de formulaire sélectionné */}
+                {selectedFormId && forms.length > 0 && (
+                  <MDBox
+                    mt={3}
+                    p={3}
+                    sx={{
+                      background: "linear-gradient(135deg, #77af0a 0%, #8bc34a 100%)",
+                      borderRadius: 3,
+                      color: "#fff",
+                      boxShadow: "0 8px 25px rgba(119, 175, 10, 0.2)",
+                      animation: "slideIn 0.5s ease-out",
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Box
                         sx={{
-                          color: "rgba(255,255,255,0.8)",
-                          fontSize: 12,
-                          display: "block",
-                          mt: 0.5,
+                          width: 48,
+                          height: 48,
+                          borderRadius: "50%",
+                          background: "rgba(255,255,255,0.2)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
                         }}
                       >
-                        {form.parameters?.length || 0} questions
-                      </MDTypography>
+                        <Icon sx={{ fontSize: 24, color: "#fff" }}>analytics</Icon>
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <MDTypography variant="h6" fontWeight="bold" color="#fff" mb={0.5}>
+                          {forms.find((f) => f.id === selectedFormId)?.title ||
+                            "Formulaire sélectionné"}
+                        </MDTypography>
+                        <MDTypography variant="body2" color="rgba(255,255,255,0.9)">
+                          Analyse en cours - {totalResponses} réponses collectées par{" "}
+                          {totalEnqueteurs} enquêteur(s)
+                        </MDTypography>
+                      </Box>
+                      <Chip
+                        label="Actif"
+                        size="small"
+                        sx={{
+                          background: "rgba(255,255,255,0.2)",
+                          color: "#fff",
+                          fontWeight: 600,
+                          fontSize: 11,
+                        }}
+                      />
                     </Box>
-                    {selectedFormId === form.id && (
-                      <Icon sx={{ fontSize: 20, color: "#fff" }}>check_circle</Icon>
-                    )}
+                  </MDBox>
+                )}
+              </Box>
+            )}
+          </Box>
+        </MDBox>
+      </MDBox>
+
+      {/* Filtre par enquêteur */}
+      {selectedFormId && enqueteurs.length > 0 && (
+        <MDBox py={1} mb={2} px={3}>
+          <Box className="selection-card" p={3}>
+            <Box display="flex" alignItems="center" gap={2} mb={3}>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 15px rgba(255, 107, 107, 0.3)",
+                }}
+              >
+                <Icon sx={{ fontSize: 20, color: "#fff" }}>group</Icon>
+              </Box>
+              <Box>
+                <MDTypography variant="h6" fontWeight="bold" color="primary" mb={0.5}>
+                  👥 Filtre par Enquêteur
+                </MDTypography>
+                <MDTypography variant="body2" color="text.secondary">
+                  Analysez les performances par enquêteur spécifique
+                </MDTypography>
+              </Box>
+            </Box>
+            <FormControl sx={{ minWidth: 300 }}>
+              <Select
+                value={selectedEnqueteur}
+                onChange={(e) => setSelectedEnqueteur(e.target.value)}
+                sx={{
+                  background: "rgba(255,255,255,0.9)",
+                  borderRadius: 3,
+                  minHeight: 56,
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                  fontSize: 16,
+                  fontWeight: 500,
+                  "& .MuiSelect-select": {
+                    padding: "16px 20px",
+                    fontSize: 16,
+                    fontWeight: 500,
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    border: "1px solid rgba(0,0,0,0.1)",
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "#667eea",
+                  },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "#667eea",
+                  },
+                }}
+              >
+                <MenuItem value="all">
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Icon sx={{ color: "#77af0a" }}>group</Icon>
+                    Tous les enquêteurs ({totalResponses} réponses)
+                  </Box>
+                </MenuItem>
+                {enqueteurs.map((enqueteur) => (
+                  <MenuItem key={enqueteur} value={enqueteur}>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Avatar
+                        sx={{
+                          bgcolor: "primary.main",
+                          width: 24,
+                          height: 24,
+                          fontSize: "12px",
+                        }}
+                      >
+                        {enqueteur.charAt(0).toUpperCase()}
+                      </Avatar>
+                      {enqueteur} ({enqueteurStats[enqueteur]?.total || 0} réponses)
+                    </Box>
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
-
-            {/* Indicateur de formulaire sélectionné */}
-            {selectedFormId && forms.length > 0 && (
-              <MDBox
-                mt={3}
-                p={3}
-                sx={{
-                  background: "linear-gradient(135deg, #77af0a 0%, #8bc34a 100%)",
-                  borderRadius: 3,
-                  color: "#fff",
-                  boxShadow: "0 8px 25px rgba(119, 175, 10, 0.2)",
-                  animation: "slideIn 0.5s ease-out",
-                }}
-              >
-                <Box display="flex" alignItems="center" gap={2}>
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: "50%",
-                      background: "rgba(255,255,255,0.2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Icon sx={{ fontSize: 24, color: "#fff" }}>analytics</Icon>
-                  </Box>
-                  <Box sx={{ flex: 1 }}>
-                    <MDTypography variant="h6" fontWeight="bold" color="#fff" mb={0.5}>
-                      {forms.find((f) => f.id === selectedFormId)?.title ||
-                        "Formulaire sélectionné"}
-                    </MDTypography>
-                    <MDTypography variant="body2" color="rgba(255,255,255,0.9)">
-                      Analyse en cours - {totalResponses} réponses collectées
-                    </MDTypography>
-                  </Box>
-                  <Chip
-                    label="Actif"
-                    size="small"
-                    sx={{
-                      background: "rgba(255,255,255,0.2)",
-                      color: "#fff",
-                      fontWeight: 600,
-                      fontSize: 11,
-                    }}
-                  />
-                </Box>
-              </MDBox>
-            )}
           </Box>
-        )}
-      </MDBox>
+        </MDBox>
+      )}
+
       {/* Statistiques globales dynamiques */}
-      <MDBox py={2} mb={4} px={3}>
+      <MDBox py={1} mb={2} px={3}>
+        <Box mb={2}>
+          <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
+            📈 Statistiques Globales
+          </MDTypography>
+          <MDTypography variant="body2" color="text.secondary">
+            Vue d&apos;ensemble des performances de votre formulaire
+          </MDTypography>
+        </Box>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={3} lg={3}>
-            <Box className="dashboard-card">
+          <Grid item xs={12} sm={6} md={3} lg={3}>
+            <Box className="stats-card" sx={{ height: "100%" }}>
               <ComplexStatisticsCard
                 color="info"
                 icon="assignment_turned_in"
@@ -699,32 +974,19 @@ function Dashboard() {
               />
             </Box>
           </Grid>
-          <Grid item xs={12} md={3} lg={3}>
-            <Box className="dashboard-card">
+          <Grid item xs={12} sm={6} md={3} lg={3}>
+            <Box className="stats-card" sx={{ height: "100%" }}>
               <ComplexStatisticsCard
                 color="success"
-                icon="check_circle"
-                title={
-                  binaryYes + binaryNo > 0 ? "Taux de satisfaction" : "Aucune question binaire"
-                }
-                count={binaryRate}
+                icon="group"
+                title="Enquêteurs actifs"
+                count={totalEnqueteurs}
                 percentage={{ color: "info", amount: "", label: "" }}
               />
             </Box>
           </Grid>
-          <Grid item xs={12} md={3} lg={3}>
-            <Box className="dashboard-card">
-              <ComplexStatisticsCard
-                color="primary"
-                icon="calculate"
-                title={numericKey ? `Moyenne (${numericKey})` : "Aucune question numérique"}
-                count={numericAvg}
-                percentage={{ color: "info", amount: "", label: "" }}
-              />
-            </Box>
-          </Grid>
-          <Grid item xs={12} md={3} lg={3}>
-            <Box className="dashboard-card">
+          <Grid item xs={12} sm={6} md={3} lg={3}>
+            <Box className="stats-card" sx={{ height: "100%" }}>
               <ComplexStatisticsCard
                 color="warning"
                 icon="today"
@@ -734,21 +996,87 @@ function Dashboard() {
               />
             </Box>
           </Grid>
+          <Grid item xs={12} sm={6} md={3} lg={3}>
+            <Box className="stats-card" sx={{ height: "100%" }}>
+              <ComplexStatisticsCard
+                color="primary"
+                icon="calculate"
+                title={numericKey ? `Moyenne (${numericKey})` : "Aucune question numérique"}
+                count={numericAvg}
+                percentage={{ color: "info", amount: "", label: "" }}
+              />
+            </Box>
+          </Grid>
         </Grid>
       </MDBox>
 
+      {/* Tableau des performances par enquêteur */}
+      {selectedFormId && enqueteurs.length > 0 && (
+        <MDBox py={1} mb={2} px={3}>
+          <Box mb={2}>
+            <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
+              🏆 Classement des Enquêteurs
+            </MDTypography>
+            <MDTypography variant="body2" color="text.secondary">
+              Analyse comparative des performances par enquêteur
+            </MDTypography>
+          </Box>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Box className="table-container">
+                <Card sx={{ p: 0, borderRadius: 3, boxShadow: 2 }}>
+                  <MDBox p={3} pb={2}>
+                    <DataTable
+                      table={{ columns: enqueteurColumns, rows: enqueteurRows }}
+                      isSorted={false}
+                      entriesPerPage={false}
+                      showTotalEntries={false}
+                      noEndBorder
+                    />
+                  </MDBox>
+                </Card>
+              </Box>
+            </Grid>
+          </Grid>
+        </MDBox>
+      )}
+
       {/* Graphiques dynamiques */}
-      <MDBox mt={2} mb={4} px={3}>
+      <MDBox mt={1} mb={2} px={3}>
+        <Box mb={2}>
+          <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
+            📊 Visualisations Analytiques
+          </MDTypography>
+          <MDTypography variant="body2" color="text.secondary">
+            Graphiques interactifs pour analyser les tendances et répartitions
+          </MDTypography>
+        </Box>
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <Box className="chart-container">
               <Card sx={{ p: 3, borderRadius: 3, height: "100%" }}>
                 <MDBox mb={3}>
-                  <MDTypography variant="h6" fontWeight="bold" color="primary">
-                    📈 Évolution des réponses
-                  </MDTypography>
+                  <Box display="flex" alignItems="center" gap={2} mb={2}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Icon sx={{ fontSize: 20, color: "#fff" }}>trending_up</Icon>
+                    </Box>
+                    <MDTypography variant="h6" fontWeight="bold" color="primary">
+                      📈 Évolution des réponses
+                    </MDTypography>
+                  </Box>
                   <MDTypography variant="body2" color="text.secondary">
-                    Nombre de réponses par jour
+                    Nombre de réponses par jour{" "}
+                    {selectedEnqueteur !== "all" ? `(${selectedEnqueteur})` : ""}
                   </MDTypography>
                 </MDBox>
                 {lineLabels.length > 0 ? (
@@ -796,9 +1124,24 @@ function Dashboard() {
             <Box className="chart-container">
               <Card sx={{ p: 3, borderRadius: 3, height: "100%" }}>
                 <MDBox mb={3}>
-                  <MDTypography variant="h6" fontWeight="bold" color="primary">
-                    🎯 Répartition des réponses
-                  </MDTypography>
+                  <Box display="flex" alignItems="center" gap={2} mb={2}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Icon sx={{ fontSize: 20, color: "#fff" }}>pie_chart</Icon>
+                    </Box>
+                    <MDTypography variant="h6" fontWeight="bold" color="primary">
+                      🎯 Répartition des réponses
+                    </MDTypography>
+                  </Box>
                   <MDTypography variant="body2" color="text.secondary">
                     {choiceKey ? `Répartition pour: ${choiceKey}` : "Répartition des choix"}
                   </MDTypography>
@@ -848,144 +1191,52 @@ function Dashboard() {
               </Card>
             </Box>
           </Grid>
+        </Grid>
+      </MDBox>
 
-          <Grid item xs={12} md={6}>
-            <Box className="chart-container">
-              <Card sx={{ p: 3, borderRadius: 3, height: "100%" }}>
-                <MDBox mb={2}>
-                  <MDTypography variant="h6" fontWeight="bold" color="primary">
-                    📊 Statistiques détaillées
-                  </MDTypography>
-                  <MDTypography variant="body2" color="text.secondary">
-                    Analyse des types de réponses
-                  </MDTypography>
-                </MDBox>
-                <Box sx={{ p: 2 }}>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Box
-                        sx={{
-                          textAlign: "center",
-                          p: 2,
-                          bgcolor: "rgba(119, 175, 10, 0.1)",
-                          borderRadius: 2,
-                        }}
-                      >
-                        <MDTypography variant="h4" fontWeight="bold" color="success">
-                          {totalResponses}
-                        </MDTypography>
-                        <MDTypography variant="body2" color="text.secondary">
-                          Total réponses
-                        </MDTypography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Box
-                        sx={{
-                          textAlign: "center",
-                          p: 2,
-                          bgcolor: "rgba(255, 167, 38, 0.1)",
-                          borderRadius: 2,
-                        }}
-                      >
-                        <MDTypography variant="h4" fontWeight="bold" color="warning">
-                          {todayCount}
-                        </MDTypography>
-                        <MDTypography variant="body2" color="text.secondary">
-                          Aujourd&apos;hui
-                        </MDTypography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Box
-                        sx={{
-                          textAlign: "center",
-                          p: 2,
-                          bgcolor: "rgba(102, 126, 234, 0.1)",
-                          borderRadius: 2,
-                        }}
-                      >
-                        <MDTypography variant="h4" fontWeight="bold" color="info">
-                          {binaryYes}
-                        </MDTypography>
-                        <MDTypography variant="body2" color="text.secondary">
-                          Réponses Oui
-                        </MDTypography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Box
-                        sx={{
-                          textAlign: "center",
-                          p: 2,
-                          bgcolor: "rgba(239, 83, 80, 0.1)",
-                          borderRadius: 2,
-                        }}
-                      >
-                        <MDTypography variant="h4" fontWeight="bold" color="error">
-                          {binaryNo}
-                        </MDTypography>
-                        <MDTypography variant="body2" color="text.secondary">
-                          Réponses Non
-                        </MDTypography>
-                      </Box>
-                    </Grid>
-                  </Grid>
-                </Box>
-              </Card>
-            </Box>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Box className="chart-container">
-              <Card sx={{ p: 3, borderRadius: 3, height: "100%" }}>
-                <MDBox mb={2}>
-                  <MDTypography variant="h6" fontWeight="bold" color="primary">
-                    📅 Activité récente
-                  </MDTypography>
-                  <MDTypography variant="body2" color="text.secondary">
-                    Dernières soumissions
-                  </MDTypography>
-                </MDBox>
-                <Box sx={{ p: 2 }}>
-                  {formResponses.length > 0 ? (
-                    <Box>
-                      {formResponses.slice(0, 2).map((resp, index) => (
-                        <Box
-                          key={index}
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 2,
-                            p: 1.5,
-                            mb: 1,
-                            bgcolor: "rgba(0,0,0,0.02)",
-                            borderRadius: 1,
-                            border: "1px solid rgba(0,0,0,0.05)",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              bgcolor: "#77af0a",
-                            }}
-                          />
-                          <Box sx={{ flex: 1 }}>
-                            <MDTypography variant="body2" fontWeight="medium">
-                              {resp.response_form?.created_by || "Anonyme"}
-                            </MDTypography>
-                            <MDTypography variant="caption" color="text.secondary">
-                              {resp.response_form?.created_at
-                                ? new Date(resp.response_form.created_at).toLocaleString()
-                                : "Date inconnue"}
-                            </MDTypography>
-                          </Box>
-                        </Box>
-                      ))}
+      {/* Tableau des réponses */}
+      <MDBox py={1} mb={2} px={3}>
+        <Box mb={2}>
+          <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
+            📋 Historique des Réponses
+          </MDTypography>
+          <MDTypography variant="body2" color="text.secondary">
+            Détail complet de toutes les réponses collectées
+          </MDTypography>
+        </Box>
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Box className="table-container">
+              <Card sx={{ p: 0, borderRadius: 3, boxShadow: 2 }}>
+                <MDBox p={3} pb={2}>
+                  <Box display="flex" alignItems="center" gap={2} mb={3}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Icon sx={{ fontSize: 20, color: "#333" }}>list_alt</Icon>
                     </Box>
-                  ) : (
+                    <MDTypography variant="h6" fontWeight="bold" color="primary">
+                      📋 Dernières réponses du formulaire
+                    </MDTypography>
+                  </Box>
+                  <MDTypography variant="body2" color="text.secondary" mb={3}>
+                    {selectedEnqueteur !== "all"
+                      ? `Réponses de ${selectedEnqueteur}`
+                      : "Toutes les réponses"}
+                  </MDTypography>
+                  {loadingResponses ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" py={5}>
+                      <CircularProgress />
+                    </Box>
+                  ) : filteredResponses.length === 0 ? (
                     <Box
                       display="flex"
                       flexDirection="column"
@@ -994,64 +1245,23 @@ function Dashboard() {
                       py={5}
                       sx={{ color: "text.secondary" }}
                     >
-                      <Icon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }}>schedule</Icon>
+                      <Icon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }}>inbox</Icon>
                       <MDTypography variant="h6" color="text.secondary">
-                        Aucune activité récente
+                        Aucune réponse trouvée
                       </MDTypography>
                       <MDTypography variant="body2" color="text.secondary">
-                        Les activités apparaîtront ici
+                        Les réponses apparaîtront ici une fois collectées
                       </MDTypography>
                     </Box>
+                  ) : (
+                    <DataTable
+                      table={{ columns: responseColumns, rows: responseRows }}
+                      isSorted={false}
+                      entriesPerPage={false}
+                      showTotalEntries={false}
+                      noEndBorder
+                    />
                   )}
-                </Box>
-              </Card>
-            </Box>
-          </Grid>
-        </Grid>
-      </MDBox>
-
-      {/* Tableau des réponses */}
-      <MDBox py={3} mb={2} px={3}>
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Box className="table-container">
-              <Card sx={{ p: 0, borderRadius: 3, boxShadow: 2 }}>
-                <MDBox p={2} pb={1}>
-                  <MDTypography variant="h6" fontWeight="bold" mb={1} color="primary">
-                    📋 Dernières réponses du formulaire
-                  </MDTypography>
-                  <MDBox pt={2}>
-                    {loadingResponses ? (
-                      <Box display="flex" justifyContent="center" alignItems="center" py={5}>
-                        <CircularProgress />
-                      </Box>
-                    ) : formResponses.length === 0 ? (
-                      <Box
-                        display="flex"
-                        flexDirection="column"
-                        justifyContent="center"
-                        alignItems="center"
-                        py={5}
-                        sx={{ color: "text.secondary" }}
-                      >
-                        <Icon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }}>inbox</Icon>
-                        <MDTypography variant="h6" color="text.secondary">
-                          Aucune réponse trouvée
-                        </MDTypography>
-                        <MDTypography variant="body2" color="text.secondary">
-                          Les réponses apparaîtront ici une fois collectées
-                        </MDTypography>
-                      </Box>
-                    ) : (
-                      <DataTable
-                        table={{ columns: responseColumns, rows: responseRows }}
-                        isSorted={false}
-                        entriesPerPage={false}
-                        showTotalEntries={false}
-                        noEndBorder
-                      />
-                    )}
-                  </MDBox>
                 </MDBox>
               </Card>
             </Box>

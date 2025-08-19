@@ -1070,6 +1070,7 @@ export default function FormHeader() {
                 textAlign: "center",
                 textShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 letterSpacing: "-0.5px",
+                color: "#ffffff",
               }}
             >
               {title}
@@ -1514,6 +1515,7 @@ export default function FormHeader() {
                   borderRadius: "12px",
                   px: 4,
                   py: 1.5,
+                  color: "#ffffff",
                   "&:hover": {
                     background: "linear-gradient(135deg, #6a991f 0%, #4a643c 100%)",
                   },

@@ -55,6 +55,8 @@ export default styled(Drawer)(({ theme, ownerState }) => {
         easing: transitions.easing.sharp,
         duration: transitions.duration.enteringScreen,
       }),
+      position: "fixed",
+      height: "100vh",
     },
   });
 
@@ -78,13 +80,26 @@ export default styled(Drawer)(({ theme, ownerState }) => {
         easing: transitions.easing.sharp,
         duration: transitions.duration.shorter,
       }),
+      position: "fixed",
+      height: "100vh",
     },
   });
 
   return {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    height: "100vh",
+    zIndex: 1200,
+    flexShrink: 0,
     "& .MuiDrawer-paper": {
       boxShadow: xxl,
       border: "none",
+      position: "fixed",
+      top: 0,
+      left: 0,
+      height: "100vh",
+      overflowY: "auto",
 
       ...(miniSidenav ? drawerCloseStyles() : drawerOpenStyles()),
     },
