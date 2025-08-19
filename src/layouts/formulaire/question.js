@@ -3415,7 +3415,7 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                               const isSelected = selectedControlChoices.includes(choice);
                               return (
                                 <Box
-                                  key={index}
+                              key={index}
                                   onClick={() => {
                                     if (isSelected) {
                                       setSelectedControlChoices(
@@ -3588,10 +3588,10 @@ const QuestionPage = ({ title, onTitleChange, parentLoading = false }) => {
                         }}
                       >
                         🎯 Configuration active
-                      </Typography>
+                    </Typography>
                       <Typography variant="body2" sx={{ color: "#15803d", mb: 2 }}>
                         Cette question s&apos;affichera quand l&apos;utilisateur sélectionnera :
-                      </Typography>
+                    </Typography>
 
                       {/* Affichage des choix sélectionnés */}
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>

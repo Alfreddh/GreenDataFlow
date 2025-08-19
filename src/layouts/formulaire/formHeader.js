@@ -1044,73 +1044,73 @@ export default function FormHeader() {
               p: 4,
               color: "#ffffff",
               position: "relative",
-            }}
-          >
-            {formImage && (
-              <Box sx={{ mb: 3, textAlign: "center" }}>
-                <img
-                  src={formImage}
-                  alt="form"
-                  style={{
-                    maxWidth: "100%",
+          }}
+        >
+          {formImage && (
+            <Box sx={{ mb: 3, textAlign: "center" }}>
+              <img
+                src={formImage}
+                alt="form"
+                style={{
+                  maxWidth: "100%",
                     maxHeight: "120px",
-                    objectFit: "contain",
-                    borderRadius: 12,
+                  objectFit: "contain",
+                  borderRadius: 12,
                     border: "3px solid rgba(255,255,255,0.2)",
-                  }}
-                />
-              </Box>
-            )}
-            <Typography
+                }}
+              />
+            </Box>
+          )}
+          <Typography
               variant="h3"
-              sx={{
-                mb: 2,
+            sx={{
+              mb: 2,
                 fontWeight: "800",
                 fontSize: "32px",
                 textAlign: "center",
                 textShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 letterSpacing: "-0.5px",
                 color: "#ffffff",
-              }}
-            >
-              {title}
-            </Typography>
-            <Typography
-              variant="body1"
-              sx={{
+            }}
+          >
+            {title}
+          </Typography>
+          <Typography
+            variant="body1"
+            sx={{
                 fontSize: "18px",
-                lineHeight: 1.6,
+              lineHeight: 1.6,
                 textAlign: "center",
                 opacity: 0.9,
                 maxWidth: "600px",
                 mx: "auto",
-              }}
-            >
-              {localStorage.getItem("formDescription") || ""}
-            </Typography>
+            }}
+          >
+            {localStorage.getItem("formDescription") || ""}
+          </Typography>
           </Box>
 
           {/* Contenu du formulaire */}
           <Box sx={{ p: 6, backgroundColor: "#ffffff" }}>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {allQuestions.map((question, index) => {
-                // Vérifier si la question doit être affichée
-                const isVisible = shouldShowQuestion(question);
+              // Vérifier si la question doit être affichée
+              const isVisible = shouldShowQuestion(question);
 
-                if (!isVisible) return null;
+              if (!isVisible) return null;
 
-                return (
-                  <Box
-                    key={question.id}
-                    sx={{
+              return (
+                <Box
+                  key={question.id}
+                  sx={{
                       position: "relative",
                       p: 4,
                       borderRadius: 3,
                       border: "2px solid #f8fafc",
                       backgroundColor: "#ffffff",
                       transition: "all 0.3s ease",
-                      "&:hover": {
-                        borderColor: "#e2e8f0",
+                    "&:hover": {
+                      borderColor: "#e2e8f0",
                         boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                         transform: "translateY(-1px)",
                       },
@@ -1130,101 +1130,101 @@ export default function FormHeader() {
                         fontSize: "12px",
                         fontWeight: "bold",
                         zIndex: 1,
-                      },
-                    }}
-                  >
-                    <Typography
+                    },
+                  }}
+                >
+                  <Typography
                       variant="h5"
-                      sx={{
+                    sx={{
                         mb: 3,
                         fontSize: "20px",
                         fontWeight: "700",
-                        color: "#1e293b",
+                      color: "#1e293b",
                         lineHeight: 1.3,
                         display: "flex",
                         alignItems: "center",
                         gap: 2,
-                      }}
-                    >
-                      {question.label}
-                      {question.required && (
-                        <Chip
-                          label="Obligatoire"
-                          size="small"
-                          sx={{
-                            backgroundColor: "#fef2f2",
-                            color: "#dc2626",
+                    }}
+                  >
+                    {question.label}
+                    {question.required && (
+                      <Chip
+                        label="Obligatoire"
+                        size="small"
+                        sx={{
+                          backgroundColor: "#fef2f2",
+                          color: "#dc2626",
                             fontSize: "11px",
                             height: "24px",
                             fontWeight: "600",
                             border: "1px solid #fecaca",
-                          }}
-                        />
-                      )}
-                    </Typography>
-
-                    {/* Champs de saisie selon le type */}
-                    {question.type === "texte" && (
-                      <TextField
-                        fullWidth
-                        variant="outlined"
-                        placeholder="Votre réponse"
-                        multiline
-                        rows={2}
-                        value={formValues[question.label] || ""}
-                        onChange={(e) => updateFormValue(question.label, e.target.value)}
-                        sx={{
-                          "& .MuiOutlinedInput-root": {
-                            borderRadius: 2,
-                            backgroundColor: "#fff",
-                          },
                         }}
                       />
                     )}
+                  </Typography>
 
-                    {question.type === "choix_unique" && (
-                      <RadioGroup
-                        value={formValues[question.label] || ""}
-                        onChange={(e) => updateFormValue(question.label, e.target.value)}
-                      >
-                        {question.options.map((opt, idx) => (
-                          <FormControlLabel key={idx} value={opt} control={<Radio />} label={opt} />
-                        ))}
-                      </RadioGroup>
-                    )}
+                    {/* Champs de saisie selon le type */}
+                  {question.type === "texte" && (
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="Votre réponse"
+                      multiline
+                      rows={2}
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        },
+                      }}
+                    />
+                  )}
 
-                    {question.type === "choix_multiple" && (
-                      <FormGroup>
-                        {question.options.map((opt, idx) => (
-                          <FormControlLabel
-                            key={idx}
-                            control={
-                              <Checkbox
-                                checked={(formValues[question.label] || []).includes(opt)}
-                                onChange={(e) => {
-                                  const currentValues = formValues[question.label] || [];
-                                  const newValues = e.target.checked
-                                    ? [...currentValues, opt]
-                                    : currentValues.filter((v) => v !== opt);
-                                  updateFormValue(question.label, newValues);
-                                }}
-                              />
-                            }
-                            label={opt}
-                          />
-                        ))}
-                      </FormGroup>
-                    )}
+                  {question.type === "choix_unique" && (
+                    <RadioGroup
+                      value={formValues[question.label] || ""}
+                      onChange={(e) => updateFormValue(question.label, e.target.value)}
+                    >
+                      {question.options.map((opt, idx) => (
+                        <FormControlLabel key={idx} value={opt} control={<Radio />} label={opt} />
+                      ))}
+                    </RadioGroup>
+                  )}
 
-                    {question.type === "position" && (
+                  {question.type === "choix_multiple" && (
+                    <FormGroup>
+                      {question.options.map((opt, idx) => (
+                        <FormControlLabel
+                          key={idx}
+                          control={
+                            <Checkbox
+                              checked={(formValues[question.label] || []).includes(opt)}
+                              onChange={(e) => {
+                                const currentValues = formValues[question.label] || [];
+                                const newValues = e.target.checked
+                                  ? [...currentValues, opt]
+                                  : currentValues.filter((v) => v !== opt);
+                                updateFormValue(question.label, newValues);
+                              }}
+                            />
+                          }
+                          label={opt}
+                        />
+                      ))}
+                    </FormGroup>
+                  )}
+
+                  {question.type === "position" && (
                       <PositionField
                         value={formValues[question.label] || {}}
                         onChange={(newValue) => updateFormValue(question.label, newValue)}
-                      />
-                    )}
-                  </Box>
-                );
-              })}
+                    />
+                  )}
+                </Box>
+              );
+            })}
             </Box>
           </Box>
         </Paper>

@@ -28,6 +28,7 @@ import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import CircularProgress from "@mui/material/CircularProgress";
+import Button from "@mui/material/Button";
 import { Chart, ArcElement, Tooltip as ChartTooltip, Legend } from "chart.js";
 
 // Material Dashboard 2 React components
@@ -42,10 +43,30 @@ import ComplexStatisticsCard from "examples/Cards/StatisticsCards/ComplexStatist
 import ReportsLineChart from "examples/Charts/LineCharts/ReportsLineChart";
 import ReportsBarChart from "examples/Charts/BarCharts/ReportsBarChart";
 import DataTable from "examples/Tables/DataTable";
+import ReportsPieChart from "examples/Charts/PieCharts/ReportsPieChart";
+import ReportsDoughnutChart from "examples/Charts/DoughnutCharts/ReportsDoughnutChart";
+import ReportsHorizontalBarChart from "examples/Charts/HorizontalBarCharts/ReportsHorizontalBarChart";
 
 // React hooks
 import React, { useEffect, useState, useRef } from "react";
 import { formService } from "../../services/api";
+
+// Import des bibliothèques d'export
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import * as XLSX from "xlsx";
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  AlignmentType,
+} from "docx";
+import { saveAs } from "file-saver";
 
 Chart.register(ArcElement, ChartTooltip, Legend);
 
@@ -56,6 +77,9 @@ function Dashboard() {
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [loadingForms, setLoadingForms] = useState(true);
   const [selectedEnqueteur, setSelectedEnqueteur] = useState("all");
+  const [chartSize, setChartSize] = useState("medium");
+  const [defaultChartType, setDefaultChartType] = useState("pie");
+  const [formData, setFormData] = useState(null);
   // Cache global avec localStorage pour persister entre les navigations
   const CACHE_KEY_FORMS = "dashboard_forms_cache";
   const CACHE_KEY_RESPONSES = "dashboard_responses_cache";
@@ -221,6 +245,38 @@ function Dashboard() {
 
     fetchRealResponses();
   }, [selectedFormId]);
+
+  // Charger les données du formulaire sélectionné
+  useEffect(() => {
+    const fetchFormData = async () => {
+      if (!selectedFormId) return;
+
+      try {
+        const form = forms.find((f) => f.id === selectedFormId);
+        if (form) {
+          // Transformer les données du formulaire pour correspondre à la structure attendue
+          const transformedFormData = {
+            id: form.id,
+            title: form.title,
+            description: form.description,
+            questions: (form.parameters || []).map((param, idx) => ({
+              id: param.id || `q_${idx + 1}`,
+              label: param.libelle,
+              type: param.type,
+              required: param.is_required,
+              options: param.modalities?.map((m) => m.libelle) || [],
+              modalities: param.modalities || [],
+            })),
+          };
+          setFormData(transformedFormData);
+        }
+      } catch (e) {
+        console.error("Erreur lors du chargement des données du formulaire:", e);
+      }
+    };
+
+    fetchFormData();
+  }, [selectedFormId, forms]);
 
   // === ANALYSE PAR ENQUÊTEUR ===
   // Extraire tous les enquêteurs uniques
@@ -500,6 +556,847 @@ function Dashboard() {
 
     return row;
   });
+
+  // Fonction pour générer le rapport détaillé
+  const generateDetailedReport = () => {
+    if (!formData || !formData.questions) return [];
+
+    return formData.questions.map((question, index) => {
+      const questionResponses = allParameterResponses.filter(
+        (pr) => pr.parameter_libelle === question.label
+      );
+
+      const totalResponses = questionResponses.length;
+      const hasData = totalResponses > 0;
+
+      if (!hasData) {
+        return (
+          <Box
+            key={question.id}
+            sx={{
+              mb: 6,
+              p: 4,
+              border: "1px solid #e2e8f0",
+              borderRadius: 3,
+              backgroundColor: "#f8fafc",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            }}
+          >
+            <MDTypography variant="h6" fontWeight="bold" color="primary" mb={2}>
+              {index + 1}. {question.label}
+            </MDTypography>
+            <MDTypography variant="body2" color="text.secondary" sx={{ fontSize: "13px" }}>
+              Type : {question.type}. Aucune réponse pour cette question.
+            </MDTypography>
+          </Box>
+        );
+      }
+
+      // Analyser les réponses selon le type de question
+      let analysis = {};
+      let chartData = null;
+
+      switch (question.type) {
+        case "choix_unique":
+        case "binaire":
+          analysis = analyzeChoiceQuestion(questionResponses, question);
+          chartData = generateChartData(analysis, defaultChartType);
+          break;
+        case "choix_multiple":
+          analysis = analyzeMultipleChoiceQuestion(questionResponses, question);
+          chartData = generateChartData(analysis, defaultChartType);
+          break;
+        case "texte":
+        case "nombre_entier":
+        case "nombre_decimal":
+          analysis = analyzeTextQuestion(questionResponses, question);
+          chartData = generateChartData(analysis, "bar");
+          break;
+        case "date":
+        case "datetime":
+          analysis = analyzeDateQuestion(questionResponses, question);
+          chartData = generateChartData(analysis, "line");
+          break;
+        default:
+          analysis = analyzeGenericQuestion(questionResponses, question);
+          chartData = generateChartData(analysis, defaultChartType);
+      }
+
+      return (
+        <Box
+          key={question.id}
+          sx={{
+            mb: 6,
+            p: 4,
+            border: "1px solid #e2e8f0",
+            borderRadius: 3,
+            backgroundColor: "#fff",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+            transition: "all 0.3s ease",
+            "&:hover": {
+              boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+              transform: "translateY(-2px)",
+            },
+          }}
+        >
+          <MDTypography variant="h6" fontWeight="bold" color="primary" mb={2}>
+            {index + 1}. {question.label}
+          </MDTypography>
+          <MDTypography variant="body2" color="text.secondary" mb={3} sx={{ fontSize: "13px" }}>
+            Type : {question.type}. {totalResponses} sur {filteredResponses.length} répondants ont
+            répondu à cette question.
+          </MDTypography>
+
+          {/* Tableau des données */}
+          <Box sx={{ mb: 3 }}>
+            <MDTypography variant="subtitle2" fontWeight="bold" mb={2}>
+              Répartition des réponses
+            </MDTypography>
+            <Box sx={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "#f8fafc" }}>
+                    <th
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: "left",
+                        border: "1px solid #e2e8f0",
+                        fontWeight: "600",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Valeur
+                    </th>
+                    <th
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: "center",
+                        border: "1px solid #e2e8f0",
+                        fontWeight: "600",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Fréquence
+                    </th>
+                    <th
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: "center",
+                        border: "1px solid #e2e8f0",
+                        fontWeight: "600",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Pourcentage
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysis.data.map((item, idx) => (
+                    <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          border: "1px solid #e2e8f0",
+                          wordBreak: "break-word",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {typeof item.label === "object" ? "Fichier" : item.label}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          textAlign: "center",
+                          border: "1px solid #e2e8f0",
+                          fontWeight: "500",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {item.value}
+                      </td>
+                      <td
+                        style={{
+                          padding: "10px 12px",
+                          textAlign: "center",
+                          border: "1px solid #e2e8f0",
+                          fontWeight: "500",
+                          fontSize: "12px",
+                        }}
+                      >
+                        {item.percentage}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Box>
+          </Box>
+
+          {/* Graphique */}
+          {chartData && chartData.datasets && chartData.datasets[0].data.some((val) => val > 0) && (
+            <Box sx={{ mt: 4, mb: 0 }}>
+              <Box display="flex" alignItems="center" gap={2} mb={3}>
+                <MDTypography variant="subtitle2" fontWeight="bold">
+                  Visualisation
+                </MDTypography>
+                <FormControl size="small" sx={{ minWidth: 150 }}>
+                  <Select
+                    value={chartData.type}
+                    onChange={(e) => updateChartType(question.id, e.target.value)}
+                    size="small"
+                  >
+                    <MenuItem value="pie">Secteur</MenuItem>
+                    <MenuItem value="bar">Barres verticales</MenuItem>
+                    <MenuItem value="horizontalBar">Barres horizontales</MenuItem>
+                    <MenuItem value="doughnut">Anneau</MenuItem>
+                    <MenuItem value="line">Ligne</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box
+                sx={{
+                  height:
+                    chartData.type === "bar"
+                      ? chartSize === "small"
+                        ? 220
+                        : chartSize === "large"
+                        ? 300
+                        : 250
+                      : chartSize === "small"
+                      ? 320
+                      : chartSize === "large"
+                      ? 450
+                      : 370,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "flex-start",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 2,
+                  backgroundColor: "#fafbfc",
+                  p: 2,
+                  pt: 1,
+                }}
+              >
+                {renderChart(chartData)}
+              </Box>
+            </Box>
+          )}
+        </Box>
+      );
+    });
+  };
+
+  // Fonctions d'analyse par type de question
+  const analyzeChoiceQuestion = (responses, question) => {
+    const counts = {};
+    responses.forEach((resp) => {
+      let value = resp.value || "Sans réponse";
+
+      // Gérer les objets File
+      if (typeof value === "object" && value !== null) {
+        if (value instanceof File) {
+          value = `Fichier: ${value.name}`;
+        } else {
+          value = "Objet";
+        }
+      }
+
+      counts[value] = (counts[value] || 0) + 1;
+    });
+
+    const total = responses.length;
+    const data = Object.entries(counts).map(([label, value]) => ({
+      label,
+      value,
+      percentage: ((value / total) * 100).toFixed(2),
+    }));
+
+    return { data, total };
+  };
+
+  const analyzeMultipleChoiceQuestion = (responses, question) => {
+    const counts = {};
+    responses.forEach((resp) => {
+      if (resp.modalities && Array.isArray(resp.modalities)) {
+        resp.modalities.forEach((mod) => {
+          const label = mod.libelle || "Option inconnue";
+          counts[label] = (counts[label] || 0) + 1;
+        });
+      }
+    });
+
+    const total = responses.length;
+    const data = Object.entries(counts).map(([label, value]) => ({
+      label,
+      value,
+      percentage: ((value / total) * 100).toFixed(2),
+    }));
+
+    return { data, total };
+  };
+
+  const analyzeTextQuestion = (responses, question) => {
+    const counts = {};
+    responses.forEach((resp) => {
+      let value = resp.value || "Sans réponse";
+
+      // Gérer les objets File
+      if (typeof value === "object" && value !== null) {
+        if (value instanceof File) {
+          value = `Fichier: ${value.name}`;
+        } else {
+          value = "Objet";
+        }
+      }
+
+      counts[value] = (counts[value] || 0) + 1;
+    });
+
+    // Trier par fréquence décroissante et limiter à 10 valeurs
+    const sortedEntries = Object.entries(counts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+
+    const total = responses.length;
+    const data = sortedEntries.map(([label, value]) => ({
+      label,
+      value,
+      percentage: ((value / total) * 100).toFixed(2),
+    }));
+
+    return { data, total };
+  };
+
+  const analyzeDateQuestion = (responses, question) => {
+    const counts = {};
+    responses.forEach((resp) => {
+      let dateLabel = "Sans réponse";
+      if (resp.value) {
+        try {
+          const date = new Date(resp.value);
+          // Formater la date de manière plus courte
+          dateLabel = date.toLocaleDateString("fr-FR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+        } catch (e) {
+          dateLabel = "Date invalide";
+        }
+      }
+      counts[dateLabel] = (counts[dateLabel] || 0) + 1;
+    });
+
+    const total = responses.length;
+    const data = Object.entries(counts).map(([label, value]) => ({
+      label,
+      value,
+      percentage: ((value / total) * 100).toFixed(2),
+    }));
+
+    return { data, total };
+  };
+
+  const analyzeGenericQuestion = (responses, question) => {
+    return analyzeChoiceQuestion(responses, question);
+  };
+
+  // Génération des données de graphique
+  const generateChartData = (analysis, chartType) => {
+    const colors = [
+      "#77af0a",
+      "#ffa726",
+      "#42a5f5",
+      "#ab47bc",
+      "#ef5350",
+      "#26a69a",
+      "#8bc34a",
+      "#ff9800",
+      "#2196f3",
+      "#9c27b0",
+      "#f44336",
+      "#009688",
+    ];
+
+    // S'assurer qu'on a des données valides
+    if (!analysis.data || analysis.data.length === 0) {
+      return null;
+    }
+
+    return {
+      type: chartType,
+      labels: analysis.data.map((item) => item.label),
+      datasets: [
+        {
+          label: "Réponses",
+          data: analysis.data.map((item) => parseInt(item.value) || 0),
+          backgroundColor: colors.slice(0, analysis.data.length),
+          borderColor: colors.slice(0, analysis.data.length),
+          borderWidth: 2,
+        },
+      ],
+    };
+  };
+
+  // Rendu du graphique
+  const renderChart = (chartData) => {
+    if (!chartData || !chartData.datasets || chartData.datasets.length === 0) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+          <MDTypography variant="body2" color="text.secondary">
+            Aucune donnée disponible pour ce graphique
+          </MDTypography>
+        </Box>
+      );
+    }
+
+    const chartProps = {
+      color: "info",
+      title: "",
+      description: "",
+      date: "",
+      chart: chartData,
+    };
+
+    switch (chartData.type) {
+      case "pie":
+        return <ReportsPieChart {...chartProps} />;
+      case "doughnut":
+        return <ReportsDoughnutChart {...chartProps} />;
+      case "line":
+        return <ReportsLineChart {...chartProps} />;
+      case "horizontalBar":
+        return <ReportsHorizontalBarChart {...chartProps} />;
+      default:
+        return <ReportsBarChart {...chartProps} />;
+    }
+  };
+
+  // Mise à jour du type de graphique
+  const updateChartType = (questionId, newType) => {
+    // Cette fonction sera implémentée pour permettre le changement dynamique
+    console.log(`Changement du type de graphique pour la question ${questionId} vers ${newType}`);
+  };
+
+  // Export du rapport
+  const exportReport = async (format) => {
+    if (!formData || !filteredResponses.length) {
+      alert("Aucune donnée disponible pour l'export");
+      return;
+    }
+
+    const formTitle = formData.title || "Rapport";
+    const timestamp = new Date().toISOString().split("T")[0];
+
+    try {
+      switch (format.toLowerCase()) {
+        case "excel":
+          await exportToExcel(formTitle, timestamp);
+          break;
+        case "word":
+          await exportToWord(formTitle, timestamp);
+          break;
+        default:
+          alert("Format non supporté");
+      }
+    } catch (error) {
+      console.error(`Erreur lors de l'export ${format}:`, error);
+      alert(`Erreur lors de l'export ${format.toUpperCase()}`);
+    }
+  };
+
+  // Fonction d'export Excel
+  const exportToExcel = async (formTitle, timestamp) => {
+    const workbook = XLSX.utils.book_new();
+
+    // Feuille des statistiques générales
+    const statsData = [
+      ["Statistiques Générales"],
+      ["", ""],
+      ["Total des réponses", totalResponses],
+      ["Enquêteurs actifs", totalEnqueteurs],
+      ["Réponses aujourd'hui", todayCount],
+      ["Dernière soumission", lastSubmission],
+      ["", ""],
+      ["Moyenne numérique", numericAvg],
+      ["Taux binaire", binaryRate],
+    ];
+
+    const statsSheet = XLSX.utils.aoa_to_sheet(statsData);
+    XLSX.utils.book_append_sheet(workbook, statsSheet, "Statistiques");
+
+    // Feuille des enquêteurs
+    if (enqueteurs.length > 0) {
+      const enqueteurData = [
+        ["Enquêteur", "Total Réponses", "Aujourd'hui", "Efficacité (%)", "Dernière Activité"],
+      ];
+
+      Object.entries(enqueteurStats).forEach(([enqueteur, stats]) => {
+        enqueteurData.push([
+          enqueteur,
+          stats.total,
+          stats.today,
+          stats.efficiency,
+          stats.lastActivity,
+        ]);
+      });
+
+      const enqueteurSheet = XLSX.utils.aoa_to_sheet(enqueteurData);
+      XLSX.utils.book_append_sheet(workbook, enqueteurSheet, "Enquêteurs");
+    }
+
+    // Feuille pour chaque question
+    formData.questions.forEach((question, index) => {
+      const questionResponses = allParameterResponses.filter(
+        (pr) => pr.parameter_libelle === question.label
+      );
+
+      const questionData = [
+        [`Question ${index + 1}: ${question.label}`],
+        [`Type: ${question.type}`],
+        [`Réponses: ${questionResponses.length} sur ${filteredResponses.length}`],
+        ["", ""],
+        ["Valeur", "Fréquence", "Pourcentage"],
+      ];
+
+      if (questionResponses.length > 0) {
+        let analysis = {};
+        switch (question.type) {
+          case "choix_unique":
+          case "binaire":
+            analysis = analyzeChoiceQuestion(questionResponses, question);
+            break;
+          case "choix_multiple":
+            analysis = analyzeMultipleChoiceQuestion(questionResponses, question);
+            break;
+          case "texte":
+          case "nombre_entier":
+          case "nombre_decimal":
+            analysis = analyzeTextQuestion(questionResponses, question);
+            break;
+          case "date":
+          case "datetime":
+            analysis = analyzeDateQuestion(questionResponses, question);
+            break;
+          default:
+            analysis = analyzeGenericQuestion(questionResponses, question);
+        }
+
+        if (analysis.data) {
+          analysis.data.forEach((item) => {
+            // Garder le texte complet pour Excel
+            questionData.push([item.label, item.value, `${item.percentage}%`]);
+          });
+        }
+      } else {
+        questionData.push(["Aucune réponse", 0, "0%"]);
+      }
+
+      const questionSheet = XLSX.utils.aoa_to_sheet(questionData);
+
+      // Ajuster la largeur des colonnes
+      const colWidths = [
+        { wch: 50 }, // Valeur - largeur maximale
+        { wch: 15 }, // Fréquence
+        { wch: 15 }, // Pourcentage
+      ];
+      questionSheet["!cols"] = colWidths;
+
+      XLSX.utils.book_append_sheet(workbook, questionSheet, `Q${index + 1}`);
+    });
+
+    // Sauvegarder le fichier Excel
+    XLSX.writeFile(workbook, `${formTitle}_Rapport_${timestamp}.xlsx`);
+  };
+
+  // Fonction d'export PDF du classement des enquêteurs
+  const exportEnqueteursPDF = async () => {
+    if (!selectedFormId || enqueteurs.length === 0) {
+      alert("Aucune donnée d'enquêteur disponible pour l'export");
+      return;
+    }
+
+    const formTitle = forms.find((f) => f.id === selectedFormId)?.title || "Formulaire";
+    const timestamp = new Date().toISOString().split("T")[0];
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    let yPosition = margin;
+
+    // Titre principal
+    pdf.setFontSize(20);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(`Enquêteurs - ${formTitle}`, pageWidth / 2, yPosition, {
+      align: "center",
+    });
+    yPosition += 15;
+
+    // Informations générales
+    pdf.setFontSize(12);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(`Date d'export: ${timestamp}`, margin, yPosition);
+    yPosition += 8;
+    pdf.text(`Total des réponses: ${totalResponses}`, margin, yPosition);
+    yPosition += 8;
+    pdf.text(`Nombre d'enquêteurs: ${totalEnqueteurs}`, margin, yPosition);
+    yPosition += 15;
+
+    // Tableau des enquêteurs
+    const tableData = [["Enquêteur", "Total Réponses", "Dernière Activité"]];
+
+    Object.entries(enqueteurStats).forEach(([enqueteur, stats]) => {
+      tableData.push([enqueteur, stats.total.toString(), stats.lastActivity]);
+    });
+
+    // Dessiner le tableau
+    const tableWidth = pageWidth - 2 * margin;
+    const colWidths = [
+      tableWidth * 0.4, // Enquêteur
+      tableWidth * 0.25, // Total Réponses
+      tableWidth * 0.35, // Dernière Activité
+    ];
+    let xPos = margin;
+
+    // En-têtes
+    pdf.setFontSize(11);
+    pdf.setFont("helvetica", "bold");
+    tableData[0].forEach((header, colIndex) => {
+      pdf.rect(xPos, yPosition - 5, colWidths[colIndex], 8);
+      pdf.text(header, xPos + 2, yPosition);
+      xPos += colWidths[colIndex];
+    });
+
+    yPosition += 8;
+
+    // Données
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "normal");
+    for (let rowIndex = 1; rowIndex < tableData.length; rowIndex++) {
+      if (yPosition > pageHeight - 30) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+
+      xPos = margin;
+      tableData[rowIndex].forEach((cell, colIndex) => {
+        pdf.rect(xPos, yPosition - 5, colWidths[colIndex], 8);
+        pdf.text(cell, xPos + 2, yPosition);
+        xPos += colWidths[colIndex];
+      });
+      yPosition += 8;
+    }
+
+    // Sauvegarder le PDF
+    pdf.save(`Enqueteurs_${formTitle}_${timestamp}.pdf`);
+  };
+
+  // Fonction d'export Word
+  const exportToWord = async (formTitle, timestamp) => {
+    const children = [];
+
+    // Titre principal
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Rapport: ${formTitle}`,
+            bold: true,
+            size: 32,
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Date d'export: ${timestamp}`,
+            size: 20,
+          }),
+        ],
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Total des réponses: ${filteredResponses.length}`,
+            size: 20,
+          }),
+        ],
+      })
+    );
+
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Enquêteurs actifs: ${totalEnqueteurs}`,
+            size: 20,
+          }),
+        ],
+      })
+    );
+
+    children.push(new Paragraph({ text: "" }));
+
+    // Générer le rapport pour chaque question
+    formData.questions.forEach((question, index) => {
+      const questionResponses = allParameterResponses.filter(
+        (pr) => pr.parameter_libelle === question.label
+      );
+
+      // Titre de la question
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${index + 1}. ${question.label}`,
+              bold: true,
+              size: 24,
+            }),
+          ],
+        })
+      );
+
+      // Type de question
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Type: ${question.type}`,
+              size: 18,
+            }),
+          ],
+        })
+      );
+
+      if (questionResponses.length > 0) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `${questionResponses.length} sur ${filteredResponses.length} répondants ont répondu`,
+                size: 18,
+              }),
+            ],
+          })
+        );
+
+        // Analyser les réponses
+        let analysis = {};
+        switch (question.type) {
+          case "choix_unique":
+          case "binaire":
+            analysis = analyzeChoiceQuestion(questionResponses, question);
+            break;
+          case "choix_multiple":
+            analysis = analyzeMultipleChoiceQuestion(questionResponses, question);
+            break;
+          case "texte":
+          case "nombre_entier":
+          case "nombre_decimal":
+            analysis = analyzeTextQuestion(questionResponses, question);
+            break;
+          case "date":
+          case "datetime":
+            analysis = analyzeDateQuestion(questionResponses, question);
+            break;
+          default:
+            analysis = analyzeGenericQuestion(questionResponses, question);
+        }
+
+        // Tableau des réponses
+        if (analysis.data && analysis.data.length > 0) {
+          const tableRows = [
+            new TableRow({
+              children: [
+                new TableCell({
+                  children: [
+                    new Paragraph({ children: [new TextRun({ text: "Valeur", bold: true })] }),
+                  ],
+                  width: { size: 60, type: WidthType.PERCENTAGE },
+                }),
+                new TableCell({
+                  children: [
+                    new Paragraph({ children: [new TextRun({ text: "Fréquence", bold: true })] }),
+                  ],
+                  width: { size: 20, type: WidthType.PERCENTAGE },
+                }),
+                new TableCell({
+                  children: [
+                    new Paragraph({ children: [new TextRun({ text: "Pourcentage", bold: true })] }),
+                  ],
+                  width: { size: 20, type: WidthType.PERCENTAGE },
+                }),
+              ],
+            }),
+          ];
+
+          analysis.data.forEach((item) => {
+            // Garder le texte complet pour Word
+            tableRows.push(
+              new TableRow({
+                children: [
+                  new TableCell({
+                    children: [new Paragraph({ children: [new TextRun({ text: item.label })] })],
+                  }),
+                  new TableCell({
+                    children: [
+                      new Paragraph({ children: [new TextRun({ text: item.value.toString() })] }),
+                    ],
+                  }),
+                  new TableCell({
+                    children: [
+                      new Paragraph({ children: [new TextRun({ text: `${item.percentage}%` })] }),
+                    ],
+                  }),
+                ],
+              })
+            );
+          });
+
+          children.push(
+            new Table({
+              rows: tableRows,
+              width: { size: 100, type: WidthType.PERCENTAGE },
+            })
+          );
+        }
+      } else {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: "Aucune réponse pour cette question",
+                italic: true,
+              }),
+            ],
+          })
+        );
+      }
+
+      children.push(new Paragraph({ text: "" }));
+    });
+
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: children,
+        },
+      ],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, `${formTitle}_Rapport_${timestamp}.docx`);
+  };
 
   return (
     <DashboardLayout>
@@ -1014,12 +1911,39 @@ function Dashboard() {
       {selectedFormId && enqueteurs.length > 0 && (
         <MDBox py={1} mb={2} px={3}>
           <Box mb={2}>
-            <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
-              🏆 Classement des Enquêteurs
-            </MDTypography>
-            <MDTypography variant="body2" color="text.secondary">
-              Analyse comparative des performances par enquêteur
-            </MDTypography>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Box>
+                <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
+                  🏆 Classement des Enquêteurs
+                </MDTypography>
+                <MDTypography variant="body2" color="text.secondary">
+                  Analyse comparative des performances par enquêteur
+                </MDTypography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<Icon sx={{ color: "#fff" }}>picture_as_pdf</Icon>}
+                onClick={() => exportEnqueteursPDF()}
+                sx={{
+                  borderRadius: 3,
+                  minHeight: 48,
+                  px: 3,
+                  py: 1.5,
+                  color: "#fff",
+                  background: "linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)",
+                  boxShadow: "0 4px 15px rgba(255, 107, 107, 0.3)",
+                  transition: "all 0.3s ease",
+                  "&:hover": {
+                    background: "linear-gradient(135deg, #ee5a24 0%, #d63031 100%)",
+                    transform: "translateY(-2px)",
+                    boxShadow: "0 6px 20px rgba(255, 107, 107, 0.4)",
+                    color: "#fff",
+                  },
+                }}
+              >
+                Télécharger PDF
+              </Button>
+            </Box>
           </Box>
           <Grid container spacing={3}>
             <Grid item xs={12}>
@@ -1041,233 +1965,216 @@ function Dashboard() {
         </MDBox>
       )}
 
-      {/* Graphiques dynamiques */}
-      <MDBox mt={1} mb={2} px={3}>
-        <Box mb={2}>
-          <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
-            📊 Visualisations Analytiques
-          </MDTypography>
-          <MDTypography variant="body2" color="text.secondary">
-            Graphiques interactifs pour analyser les tendances et répartitions
-          </MDTypography>
-        </Box>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Box className="chart-container">
-              <Card sx={{ p: 3, borderRadius: 3, height: "100%" }}>
-                <MDBox mb={3}>
-                  <Box display="flex" alignItems="center" gap={2} mb={2}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "50%",
-                        background: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Icon sx={{ fontSize: 20, color: "#fff" }}>trending_up</Icon>
-                    </Box>
-                    <MDTypography variant="h6" fontWeight="bold" color="primary">
-                      📈 Évolution des réponses
-                    </MDTypography>
-                  </Box>
-                  <MDTypography variant="body2" color="text.secondary">
-                    Nombre de réponses par jour{" "}
-                    {selectedEnqueteur !== "all" ? `(${selectedEnqueteur})` : ""}
-                  </MDTypography>
-                </MDBox>
-                {lineLabels.length > 0 ? (
-                  <ReportsLineChart
-                    color="info"
-                    title=""
-                    description=""
-                    date=""
-                    chart={{
-                      labels: lineLabels,
-                      datasets: [
-                        {
-                          label: "Réponses",
-                          data: lineData,
-                          borderColor: "#667eea",
-                          backgroundColor: "rgba(102, 126, 234, 0.1)",
-                          tension: 0.4,
-                        },
-                      ],
-                    }}
-                  />
-                ) : (
-                  <Box
-                    display="flex"
-                    flexDirection="column"
-                    justifyContent="center"
-                    alignItems="center"
-                    py={5}
-                    sx={{ color: "text.secondary" }}
-                  >
-                    <Icon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }}>show_chart</Icon>
-                    <MDTypography variant="h6" color="text.secondary">
-                      Aucune donnée disponible
-                    </MDTypography>
-                    <MDTypography variant="body2" color="text.secondary">
-                      Les graphiques apparaîtront avec les réponses
-                    </MDTypography>
-                  </Box>
-                )}
-              </Card>
-            </Box>
-          </Grid>
+      {/* Rapport Analytique Complet */}
+      {selectedFormId && filteredResponses.length > 0 && (
+        <MDBox py={1} mb={2} px={3}>
+          <Box mb={2}>
+            <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
+              📊 Rapport Analytique Complet
+            </MDTypography>
+            <MDTypography variant="body2" color="text.secondary">
+              Analyse détaillée de toutes les questions et réponses collectées
+            </MDTypography>
+          </Box>
 
-          <Grid item xs={12} md={6}>
-            <Box className="chart-container">
-              <Card sx={{ p: 3, borderRadius: 3, height: "100%" }}>
-                <MDBox mb={3}>
-                  <Box display="flex" alignItems="center" gap={2} mb={2}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "50%",
-                        background: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Icon sx={{ fontSize: 20, color: "#fff" }}>pie_chart</Icon>
-                    </Box>
-                    <MDTypography variant="h6" fontWeight="bold" color="primary">
-                      🎯 Répartition des réponses
-                    </MDTypography>
-                  </Box>
-                  <MDTypography variant="body2" color="text.secondary">
-                    {choiceKey ? `Répartition pour: ${choiceKey}` : "Répartition des choix"}
-                  </MDTypography>
-                </MDBox>
-                {barLabels.length > 0 ? (
-                  <ReportsBarChart
-                    color="success"
-                    title=""
-                    description=""
-                    date=""
-                    chart={{
-                      labels: barLabels,
-                      datasets: [
-                        {
-                          label: "Réponses",
-                          backgroundColor: [
-                            "#77af0a",
-                            "#ffa726",
-                            "#42a5f5",
-                            "#ab47bc",
-                            "#ef5350",
-                            "#26a69a",
-                          ],
-                          data: barData,
-                        },
-                      ],
-                    }}
-                  />
-                ) : (
-                  <Box
-                    display="flex"
-                    flexDirection="column"
-                    justifyContent="center"
-                    alignItems="center"
-                    py={5}
-                    sx={{ color: "text.secondary" }}
-                  >
-                    <Icon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }}>pie_chart</Icon>
-                    <MDTypography variant="h6" color="text.secondary">
-                      Aucune donnée disponible
-                    </MDTypography>
-                    <MDTypography variant="body2" color="text.secondary">
-                      Les graphiques apparaîtront avec les réponses
-                    </MDTypography>
-                  </Box>
-                )}
-              </Card>
+          {/* Contrôles du rapport */}
+          <Box className="selection-card" p={3} mb={3}>
+            <Box display="flex" alignItems="center" gap={2} mb={3}>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon sx={{ fontSize: 20, color: "#fff" }}>assessment</Icon>
+              </Box>
+              <Box sx={{ flex: 1 }}>
+                <MDTypography variant="h6" fontWeight="bold" color="primary" mb={0.5}>
+                  🎛️ Contrôles du Rapport
+                </MDTypography>
+                <MDTypography variant="body2" color="text.secondary">
+                  Personnalisez l&apos;affichage et exportez vos données
+                </MDTypography>
+              </Box>
             </Box>
-          </Grid>
-        </Grid>
-      </MDBox>
 
-      {/* Tableau des réponses */}
-      <MDBox py={1} mb={2} px={3}>
-        <Box mb={2}>
-          <MDTypography variant="h5" fontWeight="bold" color="primary" mb={1}>
-            📋 Historique des Réponses
-          </MDTypography>
-          <MDTypography variant="body2" color="text.secondary">
-            Détail complet de toutes les réponses collectées
-          </MDTypography>
-        </Box>
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Box className="table-container">
-              <Card sx={{ p: 0, borderRadius: 3, boxShadow: 2 }}>
-                <MDBox p={3} pb={2}>
-                  <Box display="flex" alignItems="center" gap={2} mb={3}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "50%",
-                        background: "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Icon sx={{ fontSize: 20, color: "#333" }}>list_alt</Icon>
-                    </Box>
-                    <MDTypography variant="h6" fontWeight="bold" color="primary">
-                      📋 Dernières réponses du formulaire
+            <Box sx={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>
+              <FormControl sx={{ minWidth: 200 }}>
+                <InputLabel>Taille du graphique</InputLabel>
+                <Select
+                  value={chartSize}
+                  onChange={(e) => setChartSize(e.target.value)}
+                  label="Taille du graphique"
+                  sx={{
+                    minHeight: 56,
+                    "& .MuiSelect-select": {
+                      padding: "16px 20px",
+                      fontSize: "14px",
+                      fontWeight: 500,
+                    },
+                  }}
+                >
+                  <MenuItem value="small">Petit</MenuItem>
+                  <MenuItem value="medium">Moyen</MenuItem>
+                  <MenuItem value="large">Grand</MenuItem>
+                </Select>
+              </FormControl>
+
+              <FormControl sx={{ minWidth: 200 }}>
+                <InputLabel>Type de graphique par défaut</InputLabel>
+                <Select
+                  value={defaultChartType}
+                  onChange={(e) => setDefaultChartType(e.target.value)}
+                  label="Type de graphique par défaut"
+                  sx={{
+                    minHeight: 56,
+                    "& .MuiSelect-select": {
+                      padding: "16px 20px",
+                      fontSize: "14px",
+                      fontWeight: 500,
+                    },
+                  }}
+                >
+                  <MenuItem value="pie">Secteur</MenuItem>
+                  <MenuItem value="bar">Barres verticales</MenuItem>
+                  <MenuItem value="horizontalBar">Barres horizontales</MenuItem>
+                  <MenuItem value="doughnut">Anneau</MenuItem>
+                  <MenuItem value="line">Ligne</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: "flex", gap: 2 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<Icon sx={{ color: "#fff" }}>table_chart</Icon>}
+                  onClick={() => exportReport("excel")}
+                  sx={{
+                    borderRadius: 3,
+                    minHeight: 48,
+                    px: 3,
+                    py: 1.5,
+                    color: "#fff",
+                    background: "linear-gradient(135deg, #00b894 0%, #00a085 100%)",
+                    boxShadow: "0 4px 15px rgba(0, 184, 148, 0.3)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #00a085 0%, #00a085 100%)",
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 6px 20px rgba(0, 184, 148, 0.4)",
+                      color: "#fff",
+                    },
+                  }}
+                >
+                  Excel
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<Icon sx={{ color: "#fff" }}>description</Icon>}
+                  onClick={() => exportReport("word")}
+                  sx={{
+                    borderRadius: 3,
+                    minHeight: 48,
+                    px: 3,
+                    py: 1.5,
+                    color: "#fff",
+                    background: "linear-gradient(135deg, #0984e3 0%, #0652dd 100%)",
+                    boxShadow: "0 4px 15px rgba(9, 132, 227, 0.3)",
+                    transition: "all 0.3s ease",
+                    "&:hover": {
+                      background: "linear-gradient(135deg, #0652dd 0%, #0652dd 100%)",
+                      transform: "translateY(-2px)",
+                      boxShadow: "0 6px 20px rgba(9, 132, 227, 0.4)",
+                      color: "#fff",
+                    },
+                  }}
+                >
+                  Word
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Zone de rapport avec défilement indépendant */}
+          <Box
+            className="table-container"
+            sx={{
+              height: "600px",
+              overflowY: "auto",
+              border: "2px solid #e2e8f0",
+              borderRadius: 3,
+              backgroundColor: "#fff",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              "&::-webkit-scrollbar": {
+                width: "12px",
+              },
+              "&::-webkit-scrollbar-track": {
+                background: "#f1f1f1",
+                borderRadius: "6px",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                background: "#c1c1c1",
+                borderRadius: "6px",
+                "&:hover": {
+                  background: "#a8a8a8",
+                },
+              },
+            }}
+          >
+            <Box
+              p={3}
+              sx={{
+                flex: 1,
+                overflowY: "auto",
+                minHeight: "100%",
+                "&::-webkit-scrollbar": {
+                  width: "8px",
+                },
+                "&::-webkit-scrollbar-track": {
+                  background: "#f8f9fa",
+                  borderRadius: "4px",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  background: "#dee2e6",
+                  borderRadius: "4px",
+                  "&:hover": {
+                    background: "#adb5bd",
+                  },
+                },
+              }}
+            >
+              {loadingResponses ? (
+                <Box display="flex" justifyContent="center" alignItems="center" py={5}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {generateDetailedReport()}
+                  {/* Espacement supplémentaire pour s'assurer que le défilement fonctionne */}
+                  <Box
+                    sx={{
+                      height: "100px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <MDTypography variant="body2" color="text.secondary" sx={{ opacity: 0.6 }}>
+                      Fin du rapport
                     </MDTypography>
                   </Box>
-                  <MDTypography variant="body2" color="text.secondary" mb={3}>
-                    {selectedEnqueteur !== "all"
-                      ? `Réponses de ${selectedEnqueteur}`
-                      : "Toutes les réponses"}
-                  </MDTypography>
-                  {loadingResponses ? (
-                    <Box display="flex" justifyContent="center" alignItems="center" py={5}>
-                      <CircularProgress />
-                    </Box>
-                  ) : filteredResponses.length === 0 ? (
-                    <Box
-                      display="flex"
-                      flexDirection="column"
-                      justifyContent="center"
-                      alignItems="center"
-                      py={5}
-                      sx={{ color: "text.secondary" }}
-                    >
-                      <Icon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }}>inbox</Icon>
-                      <MDTypography variant="h6" color="text.secondary">
-                        Aucune réponse trouvée
-                      </MDTypography>
-                      <MDTypography variant="body2" color="text.secondary">
-                        Les réponses apparaîtront ici une fois collectées
-                      </MDTypography>
-                    </Box>
-                  ) : (
-                    <DataTable
-                      table={{ columns: responseColumns, rows: responseRows }}
-                      isSorted={false}
-                      entriesPerPage={false}
-                      showTotalEntries={false}
-                      noEndBorder
-                    />
-                  )}
-                </MDBox>
-              </Card>
+                </Box>
+              )}
             </Box>
-          </Grid>
-        </Grid>
-      </MDBox>
+          </Box>
+        </MDBox>
+      )}
       <Footer />
     </DashboardLayout>
   );
